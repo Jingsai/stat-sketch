@@ -4,6 +4,8 @@
 
 **Stat Sketch** is an interactive web application designed for rapid data visualization and automated statistical analysis. By combining intuitive plotting tools with Large Language Models (LLMs), Stat Sketch helps you move from "looking at data" to "understanding data" in seconds.
 
+![](./images/app.png)
+
 ---
 
 ## 🚀 Key Features
@@ -44,25 +46,6 @@ The integrated AI assistant is designed to handle specific statistical queries. 
 
 ---
 
-## 🛡️ Privacy & Security
+## 🛡️ Data Privacy 
 
-* **Secure API Handling**: This project uses Streamlit Secrets to manage LLM API keys. Keys are never stored in the repository or exposed to the user.
-* **Data Privacy**: Uploaded data is processed in-memory for the duration of your session and is not used to train the underlying AI models.
-
----
-
-## 🌐 Deployment & Maintenance
-
-This app is hosted on **Streamlit Community Cloud**. To ensure high availability and bypass the 12-hour hibernation policy, it utilizes a custom GitHub Action that periodically pings the server to keep the instance "warm" and ready for visitors.
-
----
-
-*Developed with ❤️ by Jingsai.*
-
----
-
-### Pro-Tip for your GitHub Repo:
-
-Since you are removing the installation instructions, I recommend adding a **Screenshot** or a **GIF** of the app in action right under the "Live App" link. It makes the repository look much more professional and gives users an immediate preview of the UI.
-
-Would you like me to help you write a **GitHub Action** that automatically takes a screenshot of your app once a week to keep your README preview updated?
+* Uploaded data is processed in-memory for the duration of your session and is not used to train the underlying AI models.
