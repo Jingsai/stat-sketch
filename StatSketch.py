@@ -202,7 +202,8 @@ def render_plot_chat(plot_key: str, context_text: str) -> None:
 
     messages = st.session_state[chat_key]
     api_key = get_groq_api_key()
-    with st.expander("Ask about this plot", expanded=len(messages) > 0):
+    with st.expander("Ask about this plot (such as 'Is the relationship linear?' or 'What are the Q1, median, and Q3 of this plot?'):", 
+    expanded=len(messages) > 0):
         for m in messages:
             with st.chat_message(m["role"]):
                 st.write(m["content"])
