@@ -207,7 +207,9 @@ def render_plot_chat(plot_key: str, context_text: str) -> None:
             with st.chat_message(m["role"]):
                 st.write(m["content"])
 
-        prompt = st.chat_input("Ask about this plot...")
+        # Streamlit renders all tabs each run, so multiple chat inputs can exist at once.
+        # Use a unique key per plot to avoid DuplicateWidgetID collisions.
+        prompt = st.chat_input("Ask about this plot...", key=f"{chat_key}_input")
         if prompt:
             with st.chat_message("user"):
                 st.write(prompt)
