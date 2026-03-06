@@ -1,0 +1,40 @@
+# --- Development Files ---
+ToDo.md
+.cursor 
+
+# --- Streamlit Secrets ---
+.streamlit/secrets.toml
+
+# --- Python Environment ---
+venv/
+.venv/
+env/
+bin/
+lib/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.installed.cfg
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+
+# --- Byte-compiled / optimized / cache files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Environment Variables ---
+.env
+.flaskenv
+
+# --- OS generated files ---
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
