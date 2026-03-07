@@ -70,7 +70,7 @@ def ensure_categorical(df: pd.DataFrame, col: str, context: str = "the plot") ->
     df[col] = df[col].astype(str)
 
 
-def ensure_numeric(df: pd.DataFrame, col: str) -> None:
+def ensure_numeric(df: pd.DataFrame, col: str, threshold=0.8) -> None:
     """
     Ensure a column is numeric. If not, attempt conversion with coerce; on failure
     show error and stop the app. Modifies df in place.
@@ -81,14 +81,16 @@ def ensure_numeric(df: pd.DataFrame, col: str) -> None:
         f"'{col}' does not appear to be numeric. Attempting to convert it to numbers."
     )
     converted = pd.to_numeric(df[col], errors="coerce")
-    if converted.isna().any():
+    # Calculate what percentage of the data is now numbers
+    nan_fraction = converted.isna().sum() / len(df[col])
+    # If more than 80% (threshold) is numerical, treat as numerical
+    if nan_fraction >= threshold:
         st.error(
             f"'{col}' cannot be safely converted to numeric values. "
             "Please select a numeric variable."
         )
         st.stop()
     df[col] = converted
-
 
 def render_plotnine(p, theme=None):
     """Render a plotnine plot into Streamlit."""
@@ -105,16 +107,37 @@ def render_plotnine(p, theme=None):
 
     st.pyplot(fig, clear_figure=True, use_container_width=True)
 
+ENCODINGS = ["utf-8", "cp1252", "latin1"]
+
 @st.cache_data(show_spinner=False)
 def load_csv_from_upload(uploaded_file, sep=","):
-    return pd.read_csv(uploaded_file, sep=sep)
+    last_error = None
+    for encoding in ENCODINGS:
+        try:
+            uploaded_file.seek(0)
+            return pd.read_csv(uploaded_file, sep=sep, encoding=encoding)
+        except (UnicodeDecodeError, UnicodeError) as e:
+            last_error = e
+            continue
+    raise ValueError(
+        f"Could not decode file with any of {ENCODINGS}. Last error: {last_error}"
+    )
 
 
 @st.cache_data(show_spinner=False)
 def load_csv_from_url(url: str, sep=","):
     with urllib.request.urlopen(url) as resp:
         content = resp.read()
-    return pd.read_csv(io.BytesIO(content), sep=sep)
+    last_error = None
+    for encoding in ENCODINGS:
+        try:
+            return pd.read_csv(io.BytesIO(content), sep=sep, encoding=encoding)
+        except (UnicodeDecodeError, UnicodeError) as e:
+            last_error = e
+            continue
+    raise ValueError(
+        f"Could not decode URL content with any of {ENCODINGS}. Last error: {last_error}"
+    )
 
 
 THEME_MAP = {
@@ -270,12 +293,12 @@ if df is None:
 
 # Basic cleaning controls
 st.sidebar.header("Basic options")
-drop_first_id_column = st.sidebar.checkbox(
-    "Drop first column (e.g. ID)",
-    value=False,
-    help="Remove the first column from the data if it looks like an index/ID column.",
-)
-drop_na_rows = st.sidebar.checkbox("Drop rows with NA in selected columns (recommended)", value=True)
+# drop_first_id_column = st.sidebar.checkbox(
+#     "Drop first column (e.g. ID)",
+#     value=False,
+#     help="Remove the first column from the data if it looks like an index/ID column.",
+# )
+drop_na_rows = st.sidebar.checkbox("Drop rows with missing values in selected columns (recommended)", value=True)
 preview_rows = st.sidebar.slider("Preview rows", 5, 50, 10)
 
 theme_name = st.sidebar.selectbox(
@@ -298,56 +321,62 @@ if not has_groq_secret:
         help="Paste your key to enable chat. Or set GROQ_API_KEY in .streamlit/secrets.toml",
     )
 
-if drop_first_id_column and len(df.columns) > 1:
-    df = df.iloc[:, 1:].copy()
-elif drop_first_id_column and len(df.columns) == 1:
-    st.sidebar.warning("Only one column in data; cannot drop first column.")
+# if drop_first_id_column and len(df.columns) > 1:
+#     df = df.iloc[:, 1:].copy()
+# elif drop_first_id_column and len(df.columns) == 1:
+#     st.sidebar.warning("Only one column in data; cannot drop first column.")
 
-st.subheader("Data preview")
-st.dataframe(df.head(preview_rows), use_container_width=True)
-
-# Infer variable types
+# Infer variable types (used by visualization tabs)
 col_info = []
 for c in df.columns:
     s = df[c]
     ctype = "numeric" if is_numeric(s) and not is_categorical(s) else "categorical"
     col_info.append((c, ctype, int(s.isna().sum()), int(s.dropna().nunique())))
 info_df = pd.DataFrame(col_info, columns=["column", "inferred_type", "missing", "unique_non_na"])
-st.caption("Inferred types are heuristic; you can still pick any column you want.")
-st.dataframe(info_df, use_container_width=True, hide_index=True)
-
 categorical_cols = info_df.query("inferred_type == 'categorical'")["column"].tolist()
 numeric_cols = info_df.query("inferred_type == 'numeric'")["column"].tolist()
 
-tabs = st.tabs(["Categorical Data", "Numerical Data"])
+main_tabs = st.tabs(["Visualization & Chat", "Data Preview & Inference"])
 
+# Render Data preview tab first so its content is registered
+with main_tabs[1]:
+    st.subheader("Data Preview")
+    st.dataframe(df.head(preview_rows), use_container_width=True, hide_index=True)
+    st.subheader("Inferred Types")
+    st.caption("Inferred types are heuristic; you can still pick any column you want.")
+    st.dataframe(info_df, use_container_width=True, hide_index=True)
 
-# -----------------------------
-# Categorical tab
-# -----------------------------
-with tabs[0]:
-    st.header("Categorical Data Visualizations")
-
-    mode = st.radio("How many variables?", ["One categorical variable", "Two categorical variables"], horizontal=True)
+with main_tabs[0]:
+    mode = st.radio(
+        "Variables",
+        [
+            "One categorical variable",
+            "Two categorical variables",
+            "One numeric variable",
+            "Numeric vs categorical",
+            "Two numeric variables",
+        ],
+        horizontal=True,
+    )
 
     if mode == "One categorical variable":
-        x = st.selectbox("Categorical column", options=df.columns.tolist(), index=0)
-
-        # top_k = st.slider("Show top-k categories (others → 'Other')", 0, 30, 0)
-        chart_type = st.selectbox("Plot type", ["Bar chart", "Pie chart"], index=0)
-        show_table = st.checkbox("Show frequency table", value=True)
-
+        r1 = st.columns(2)
+        with r1[0]:
+            x = st.selectbox("Categorical column", options=df.columns.tolist(), index=0, key="v_cat1_x")
+        with r1[1]:
+            chart_type = st.selectbox("Plot type", ["Bar chart", "Pie chart"], index=0, key="v_cat1_pt")
+        show_table = st.checkbox("Show frequency table", value=False, key="v_cat1_table")
         if chart_type == "Bar chart":
-            show_percent = st.checkbox("Plot proportions instead of counts", value=False)
-            flip = st.checkbox("Flip coordinates (horizontal bars)", value=False)
+            r2 = st.columns(2)
+            with r2[0]:
+                show_percent = st.checkbox("Plot proportions instead of counts", value=False, key="v_cat1_pct")
+            with r2[1]:
+                flip = st.checkbox("Flip coordinates (horizontal bars)", value=False, key="v_cat1_flip")
 
         d = df[[x]].copy()
         if drop_na_rows:
             d = d.dropna()
-
         ensure_categorical(d, x, context="the bar chart")
-
-        # d[x] = safe_top_categories(d[x], top_k)
 
         if show_table:
             freq = (
@@ -356,13 +385,11 @@ with tabs[0]:
                 .to_frame()
                 .assign(percent=lambda t: (t["count"] / t["count"].sum()) * 100)
             )
-            st.subheader("Frequency table")
+            st.caption("Frequency table")
             st.dataframe(freq, use_container_width=True)
 
         if chart_type == "Bar chart":
-            st.subheader("Bar chart")
             if show_percent:
-                # plotnine: use after_stat for proportions via geom_bar + computed prop
                 p = (
                     ggplot(d, aes(x=x, y="..count../sum(..count..)", group=1))
                     + geom_bar()
@@ -374,72 +401,59 @@ with tabs[0]:
                     + geom_bar()
                     + labs(title=f"Distribution of {x}", x=x, y="Count")
                 )
-
             if flip:
                 p = p + coord_flip()
-
             render_plotnine(p, selected_theme)
             plot_key = f"cat_one_bar_{x}_{show_percent}_{flip}"
             context = build_plot_context("bar_chart", {"x": x, "show_percent": show_percent, "flip": flip}, d)
             render_plot_chat(plot_key, context)
-
         else:
-            st.subheader("Pie chart")
             freq_df = (
-                d[x]
-                .value_counts(dropna=False)
+                d[x].value_counts(dropna=False)
                 .rename("count")
                 .to_frame()
                 .reset_index()
                 .rename(columns={"index": x})
             )
-            # pie chart is not supported by plotnine, so we use matplotlib instead
-            # p = (
-            #     ggplot(freq_df, aes(x="''", y="count", fill=x))
-            #     + geom_col(width=1)
-            #     + coord_polar(theta="y")
-            #     + labs(title=f"Distribution of {x}", x="", y="")
-            # )
-            # render_plotnine(p, selected_theme)
-
             fig, ax = plt.subplots(figsize=(3, 3))
             ax.pie(
                 freq_df["count"],
                 labels=freq_df[x],
                 autopct="%1.1f%%",
                 startangle=90,
-                radius=0.6
+                radius=0.6,
             )
             ax.set_title(f"Distribution of {x}")
             ax.axis("equal")
-            
-            left, center, right = st.columns([0.3,2,0.5])
+            left, center, right = st.columns([0.3, 2, 0.5])
             with center:
                 st.pyplot(fig, use_container_width=False)
-
             plot_key = f"cat_one_pie_{x}"
             context = build_plot_context("pie_chart", {"x": x}, d)
             render_plot_chat(plot_key, context)
 
-    else:
-        x = st.selectbox("X (categorical)", options=df.columns.tolist(), index=0)
-        fill = st.selectbox("Group / Fill (categorical)", options=df.columns.tolist(), index=min(1, len(df.columns)-1))
+    elif mode == "Two categorical variables":
+        r1 = st.columns(2)
+        with r1[0]:
+            x = st.selectbox("X (categorical)", options=df.columns.tolist(), index=0, key="v_cat2_x")
+        with r1[1]:
+            fill = st.selectbox("Group / Fill (categorical)", options=df.columns.tolist(), index=min(1, len(df.columns) - 1), key="v_cat2_fill")
+        r2 = st.columns(2)
+        with r2[0]:
+            style = st.selectbox("Bar style", ["Side-by-side (dodge)", "Stacked", "Proportional (fill)"], index=0, key="v_cat2_style")
+        with r2[1]:
+            flip = st.checkbox("Flip coordinates (horizontal bars)", value=False, key="v_cat2_flip")
 
         if x == fill:
             st.error("Please select two different variables.")
             st.stop()
 
-        style = st.selectbox("Bar style", ["Side-by-side (dodge)", "Stacked", "Proportional (fill)"], index=0)
-        flip = st.checkbox("Flip coordinates (horizontal bars)", value=False)
-
         d = df[[x, fill]].copy()
         if drop_na_rows:
             d = d.dropna()
-
         ensure_categorical(d, x, context="the bar plot")
         ensure_categorical(d, fill, context="grouping")
 
-        st.subheader("Bar chart")
         if style == "Side-by-side (dodge)":
             p = (
                 ggplot(d, aes(x=x, fill=fill))
@@ -458,80 +472,51 @@ with tabs[0]:
                 + geom_bar()
                 + labs(title=f"{fill} by {x} (Stacked)", x=x, y="Count", fill=fill)
             )
-
         if flip:
             p = p + coord_flip()
-
         render_plotnine(p, selected_theme)
         plot_key = f"cat_two_bar_{x}_{fill}_{style}_{flip}"
         context = build_plot_context("grouped_bar", {"x": x, "fill": fill, "style": style, "flip": flip}, d)
         render_plot_chat(plot_key, context)
 
+    elif mode == "One numeric variable":
+        r1 = st.columns(2)
+        with r1[0]:
+            x = st.selectbox("Numeric column", options=df.columns.tolist(), index=0, key="v_num1_x")
+        with r1[1]:
+            plot_type = st.selectbox("Plot type", ["Histogram", "Boxplot"], index=0, key="v_num1_pt")
 
-# -----------------------------
-# Numerical tab
-# -----------------------------
-with tabs[1]:
-    st.header("Numerical Data Visualizations")
-
-    mode = st.radio("What are you plotting?", ["One numeric variable", "Numeric vs categorical", "Two numeric variables"], horizontal=True)
-
-    if mode == "One numeric variable":
-        x = st.selectbox("Numeric column", options=df.columns.tolist(), index=0)
-
-        # Choose plot type for one numeric variable
-        plot_type = st.selectbox("Plot type", ["Histogram", "Boxplot"], index=0)
-
-        # Build dataframe for plotting
         d = df[[x]].copy()
         if drop_na_rows:
             d = d.dropna()
-
         ensure_numeric(d, x)
 
-        # Now we are guaranteed numeric
         if plot_type == "Histogram":
-            binwidth = st.number_input(
-                "Histogram binwidth (leave as 0 for auto bins)",
-                min_value=0.0,
-                value=0.0,
-                step=1.0,
-            )
-            boundary = st.number_input(
-                "Histogram boundary (optional)",
-                value=float("nan"),
-            )
-            density = st.checkbox(
-                "Scale y-axis to density",
-                value=False,
-                help="Useful when comparing distributions; for a single variable, count is usually fine.",
-            )
+            r2 = st.columns(3)
+            with r2[0]:
+                binwidth = st.number_input("Binwidth (0 = auto)", min_value=0.0, value=0.0, step=1.0, key="v_num1_bw")
+            with r2[1]:
+                boundary = st.number_input("Boundary (optional)", value=float("nan"), key="v_num1_bd")
+            with r2[2]:
+                density = st.checkbox("Scale y to density", value=False, key="v_num1_dens")
 
-            # Build plot
             if density:
                 p = ggplot(d, aes(x=x, y="..density.."))
                 ylab = "Density"
             else:
                 p = ggplot(d, aes(x=x))
                 ylab = "Count"
-
             hist_kwargs = {}
             if binwidth and binwidth > 0:
                 hist_kwargs["binwidth"] = binwidth
             if not np.isnan(boundary):
                 hist_kwargs["boundary"] = boundary
-
-            p = (
-                p
-                + geom_histogram(**hist_kwargs)
-                + labs(title=f"Histogram of {x}", x=x, y=ylab)
-            )
+            p = p + geom_histogram(**hist_kwargs) + labs(title=f"Histogram of {x}", x=x, y=ylab)
             render_plotnine(p, selected_theme)
             plot_key = f"num_one_hist_{x}_{binwidth}_{boundary}_{density}"
             context = build_plot_context("histogram", {"x": x, "binwidth": binwidth, "boundary": boundary, "density": density}, d)
             render_plot_chat(plot_key, context)
-
-        else:  # Boxplot
+        else:
             p = (
                 ggplot(d, aes(x=1, y=x))
                 + geom_boxplot(width=0.3)
@@ -544,24 +529,24 @@ with tabs[1]:
             render_plot_chat(plot_key, context)
 
     elif mode == "Numeric vs categorical":
-        y = st.selectbox("Numeric column", options=df.columns.tolist(), index=0)
-        x = st.selectbox("Categorical column", options=df.columns.tolist(), index=min(1, len(df.columns)-1))
+        r1 = st.columns(2)
+        with r1[0]:
+            y = st.selectbox("Numeric column", options=df.columns.tolist(), index=0, key="v_numcat_y")
+        with r1[1]:
+            x = st.selectbox("Categorical column", options=df.columns.tolist(), index=min(1, len(df.columns) - 1), key="v_numcat_x")
+        plot_type = st.selectbox("Plot type", ["Side-by-side boxplot", "Faceted histogram"], index=0, key="v_numcat_pt")
 
         if x == y:
             st.error("Please select two different variables.")
             st.stop()
 
-        plot_type = st.selectbox("Plot type", ["Side-by-side boxplot", "Faceted histogram"], index=0)
-
         d = df[[x, y]].copy()
         if drop_na_rows:
             d = d.dropna()
-
         ensure_numeric(d, y)
         ensure_categorical(d, x, context="grouping")
 
         if plot_type == "Side-by-side boxplot":
-            st.subheader("Boxplot")
             p = (
                 ggplot(d, aes(x=x, y=y))
                 + geom_boxplot()
@@ -572,12 +557,10 @@ with tabs[1]:
             context = build_plot_context("grouped_boxplot", {"x": x, "y": y}, d)
             render_plot_chat(plot_key, context)
         else:
-            st.subheader("Faceted histogram")
-            binwidth = st.number_input("Histogram binwidth (0 for default)", min_value=0.0, value=0.0, step=1.0)
+            binwidth = st.number_input("Histogram binwidth (0 for default)", min_value=0.0, value=0.0, step=1.0, key="v_numcat_bw")
             hist_kwargs = {}
             if binwidth and binwidth > 0:
                 hist_kwargs["binwidth"] = binwidth
-
             p = (
                 ggplot(d, aes(x=y))
                 + geom_histogram(**hist_kwargs)
@@ -589,9 +572,13 @@ with tabs[1]:
             context = build_plot_context("faceted_histogram", {"x": x, "y": y, "binwidth": binwidth}, d)
             render_plot_chat(plot_key, context)
 
-    else:
-        x = st.selectbox("X (numeric)", options=df.columns.tolist(), index=0)
-        y = st.selectbox("Y (numeric)", options=df.columns.tolist(), index=min(1, len(df.columns)-1))
+    else:  # Two numeric variables
+        r1 = st.columns(2)
+        with r1[0]:
+            x = st.selectbox("X (numeric)", options=df.columns.tolist(), index=0, key="v_num2_x")
+        with r1[1]:
+            y = st.selectbox("Y (numeric)", options=df.columns.tolist(), index=min(1, len(df.columns) - 1), key="v_num2_y")
+        add_regression = st.checkbox("Add linear regression line", value=False, key="v_num2_reg")
 
         if x == y:
             st.error("Please select two different variables.")
@@ -600,12 +587,9 @@ with tabs[1]:
         d = df[[x, y]].copy()
         if drop_na_rows:
             d = d.dropna()
-
         for col in [x, y]:
             ensure_numeric(d, col)
 
-        st.subheader("Scatter plot")
-        add_regression = st.checkbox("Add linear regression line", value=False)
         p = (
             ggplot(d, aes(x=x, y=y))
             + geom_point()
@@ -613,7 +597,6 @@ with tabs[1]:
         )
         if add_regression:
             p = p + geom_smooth(method="lm", se=False, color="red")
-
         render_plotnine(p, selected_theme)
         plot_key = f"num_scatter_{x}_{y}_{add_regression}"
         context = build_plot_context("scatter", {"x": x, "y": y, "add_regression": add_regression}, d)

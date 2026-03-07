@@ -1,6 +1,7 @@
 # --- Development Files ---
 ToDo.md
 .cursor 
+test/
 
 # --- Streamlit Secrets ---
 .streamlit/secrets.toml
