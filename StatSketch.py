@@ -192,28 +192,41 @@ def get_groq_api_key() -> str | None:
         pass
     return st.session_state.get("groq_api_key_input") or None
 
-def get_plot_labels(default_title: str, default_x: str, default_y: str) -> tuple[str, str, str]:
-    """Return (title, x_label, y_label). Uses session-state overrides (custom_plot_title etc.) when non-empty, else defaults."""
-    t = st.session_state.get("custom_plot_title", "") or default_title
-    x = st.session_state.get("custom_plot_x", "") or default_x
-    y = st.session_state.get("custom_plot_y", "") or default_y
+def get_plot_labels(default_title: str, default_x: str, default_y: str, plot_key: str) -> tuple[str, str, str]:
+    """Return (title, x_label, y_label). Uses per-plot session-state overrides when non-empty, else defaults."""
+    labels = st.session_state.get("custom_plot_labels", {}).get(plot_key, {})
+    t = (labels.get("title") or "") or default_title
+    x = (labels.get("x") or "") or default_x
+    y = (labels.get("y") or "") or default_y
     return (t, x, y)
 
-def render_label_customizer_expander():
-    """Expander: choose Title / X axis label / Y axis label, then one text input. Sync: only overwrite the text input when the dropdown selection changes (so we don't overwrite what the user just typed). Persist happens at start of run into *previous* selection slot."""
+
+def render_label_customizer_expander(plot_key: str):
+    """Expander: choose Title / X axis label / Y axis label, then one text input. Stores overrides per plot_key so switching plots does not reuse another plot's labels."""
+    if "custom_plot_labels" not in st.session_state:
+        st.session_state["custom_plot_labels"] = {}
+    if plot_key not in st.session_state["custom_plot_labels"]:
+        st.session_state["custom_plot_labels"][plot_key] = {"title": "", "x": "", "y": ""}
+    labels = st.session_state["custom_plot_labels"][plot_key]
+    slot_map = {"Title": "title", "X axis label": "x", "Y axis label": "y"}
+    # When switching to a different plot, clear/sync the text input so it doesn't show the previous plot's text
+    if st.session_state.get("label_edit_plot_key") != plot_key:
+        current_which = st.session_state.get("label_which", "Title")
+        current_slot = slot_map.get(current_which, "title")
+        st.session_state["label_input"] = labels.get(current_slot, "")
     with st.expander("Customize title & axis labels", expanded=False):
         label_which = st.selectbox(
             "Edit",
             ["Title", "X axis label", "Y axis label"],
             key="label_which",
         )
-        key_map = {"Title": "custom_plot_title", "X axis label": "custom_plot_x", "Y axis label": "custom_plot_y"}
-        current_key = key_map[label_which]
+        current_slot = slot_map[label_which]
         if st.session_state.get("label_which_prev") != label_which:
-            st.session_state["label_input"] = st.session_state.get(current_key, "")
+            st.session_state["label_input"] = labels.get(current_slot, "")
         st.session_state["label_which_prev"] = label_which
         st.text_input("Value", key="label_input", placeholder="Leave blank for default")
-        st.session_state[current_key] = st.session_state.get("label_input", "")
+        labels[current_slot] = st.session_state.get("label_input", "")
+    st.session_state["label_edit_plot_key"] = plot_key
 
 
 def build_plot_context(plot_type: str, params: dict, data: pd.DataFrame) -> str:
@@ -415,17 +428,19 @@ with main_tabs[0]:
         horizontal=True,
     )
 
-    # Session state for optional title/axis overrides (Option A)
-    for key in ("custom_plot_title", "custom_plot_x", "custom_plot_y"):
-        if key not in st.session_state:
-            st.session_state[key] = ""
-    # Persist text input into the *previously* selected slot so we don't overwrite the new selection when user switches dropdown
-    _key_map = {"Title": "custom_plot_title", "X axis label": "custom_plot_x", "Y axis label": "custom_plot_y"}
-    if "label_input" in st.session_state:
-        _prev = st.session_state.get("label_which_prev") or st.session_state.get("label_which")
-        _current = _key_map.get(_prev) if _prev else None
-        if _current:
-            st.session_state[_current] = st.session_state.get("label_input", "")
+    # Session state: per-plot custom title/axis labels (custom_plot_labels[plot_key] = {title, x, y})
+    if "custom_plot_labels" not in st.session_state:
+        st.session_state["custom_plot_labels"] = {}
+    # Persist text input into the *previously* edited plot's slot so we don't overwrite when user switches dropdown or plot
+    _slot_map = {"Title": "title", "X axis label": "x", "Y axis label": "y"}
+    if "label_input" in st.session_state and st.session_state.get("label_edit_plot_key"):
+        _prev_plot = st.session_state["label_edit_plot_key"]
+        _prev_which = st.session_state.get("label_which_prev") or st.session_state.get("label_which")
+        _slot = _slot_map.get(_prev_which) if _prev_which else None
+        if _slot and _prev_plot:
+            if _prev_plot not in st.session_state["custom_plot_labels"]:
+                st.session_state["custom_plot_labels"][_prev_plot] = {"title": "", "x": "", "y": ""}
+            st.session_state["custom_plot_labels"][_prev_plot][_slot] = st.session_state.get("label_input", "")
 
     # --- Visualization branches: one per variable type (1 cat, 2 cat, 1 num, num vs cat, 2 num) ---
     if mode == "One categorical column":
@@ -448,7 +463,7 @@ with main_tabs[0]:
                 show_percent = st.checkbox("Plot proportions instead of counts", value=False, key="v_cat1_pct")
             with r2[1]:
                 flip_default = n_x > 10
-                flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key="v_cat1_flip")
+                flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key=f"v_cat1_flip_{x}")
 
         if show_table:
             freq = (
@@ -462,14 +477,16 @@ with main_tabs[0]:
 
         if chart_type == "Bar chart":
             if show_percent:
-                tit, x_lab, y_lab = get_plot_labels(f"Distribution of {x}", x, "Proportion")
+                plot_key = f"cat_one_bar_{x}_{show_percent}_{flip}"
+                tit, x_lab, y_lab = get_plot_labels(f"Distribution of {x}", x, "Proportion", plot_key)
                 p = (
                     ggplot(d, aes(x=x, y="..count../sum(..count..)", group=1))
                     + geom_bar()
                     + labs(title=tit, x=x_lab, y=y_lab)
                 )
             else:
-                tit, x_lab, y_lab = get_plot_labels(f"Distribution of {x}", x, "Count")
+                plot_key = f"cat_one_bar_{x}_{show_percent}_{flip}"
+                tit, x_lab, y_lab = get_plot_labels(f"Distribution of {x}", x, "Count", plot_key)
                 p = (
                     ggplot(d, aes(x=x))
                     + geom_bar()
@@ -478,12 +495,12 @@ with main_tabs[0]:
             if flip:
                 p = p + coord_flip()
             n_cats = n_x if flip and n_x > 10 else None
-            render_label_customizer_expander()
+            render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme, data=d, x_col=x, n_x_categories=n_cats)
-            plot_key = f"cat_one_bar_{x}_{show_percent}_{flip}"
             context = build_plot_context("bar_chart", {"x": x, "show_percent": show_percent, "flip": flip}, d)
             render_plot_chat(plot_key, context)
         else:
+            plot_key = f"cat_one_pie_{x}"
             freq_df = (
                 d[x].value_counts(dropna=False)
                 .rename("count")
@@ -499,14 +516,13 @@ with main_tabs[0]:
                 startangle=90,
                 radius=0.6,
             )
-            render_label_customizer_expander()
-            tit, _, _ = get_plot_labels(f"Distribution of {x}", x, "")
+            render_label_customizer_expander(plot_key)
+            tit, _, _ = get_plot_labels(f"Distribution of {x}", x, "", plot_key)
             ax.set_title(tit)
             ax.axis("equal")
             left, center, right = st.columns([0.3, 2, 0.5])
             with center:
                 st.pyplot(fig, use_container_width=False)
-            plot_key = f"cat_one_pie_{x}"
             context = build_plot_context("pie_chart", {"x": x}, d)
             render_plot_chat(plot_key, context)
 
@@ -522,7 +538,7 @@ with main_tabs[0]:
         with r2[1]:
             n_x = int(df[x].nunique(dropna=True))
             flip_default = n_x > 10
-            flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key="v_cat2_flip")
+            flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key=f"v_cat2_flip_{x}_{fill}")
 
         if x == fill:
             st.error("Please select two different variables.")
@@ -534,22 +550,23 @@ with main_tabs[0]:
         ensure_categorical(d, x, context="the bar plot")
         ensure_categorical(d, fill, context="grouping")
 
+        plot_key = f"cat_two_bar_{x}_{fill}_{style}_{flip}"
         if style == "Side-by-side (dodge)":
-            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x}", x, "Count")
+            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x}", x, "Count", plot_key)
             p = (
                 ggplot(d, aes(x=x, fill=fill))
                 + geom_bar(position="dodge")
                 + labs(title=tit, x=x_lab, y=y_lab, fill=fill)
             )
         elif style == "Proportional (fill)":
-            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x} (Proportions)", x, "Proportion")
+            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x} (Proportions)", x, "Proportion", plot_key)
             p = (
                 ggplot(d, aes(x=x, fill=fill))
                 + geom_bar(position="fill")
                 + labs(title=tit, x=x_lab, y=y_lab, fill=fill)
             )
         else:
-            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x} (Stacked)", x, "Count")
+            tit, x_lab, y_lab = get_plot_labels(f"{fill} by {x} (Stacked)", x, "Count", plot_key)
             p = (
                 ggplot(d, aes(x=x, fill=fill))
                 + geom_bar()
@@ -557,10 +574,9 @@ with main_tabs[0]:
             )
         if flip:
             p = p + coord_flip()
-        render_label_customizer_expander()
+        render_label_customizer_expander(plot_key)
         n_cats = n_x if flip and n_x > 10 else None
         render_plotnine(p, selected_theme, data=d, x_col=x, n_x_categories=n_cats)
-        plot_key = f"cat_two_bar_{x}_{fill}_{style}_{flip}"
         context = build_plot_context("grouped_bar", {"x": x, "fill": fill, "style": style, "flip": flip}, d)
         render_plot_chat(plot_key, context)
 
@@ -596,24 +612,24 @@ with main_tabs[0]:
                 hist_kwargs["binwidth"] = binwidth
             if not np.isnan(boundary):
                 hist_kwargs["boundary"] = boundary
-            tit, x_lab, y_lab = get_plot_labels(f"Histogram of {x}", x, ylab)
-            p = p + geom_histogram(**hist_kwargs) + labs(title=tit, x=x_lab, y=y_lab)
-            render_label_customizer_expander()
-            render_plotnine(p, selected_theme)
             plot_key = f"num_one_hist_{x}_{binwidth}_{boundary}_{density}"
+            tit, x_lab, y_lab = get_plot_labels(f"Histogram of {x}", x, ylab, plot_key)
+            p = p + geom_histogram(**hist_kwargs) + labs(title=tit, x=x_lab, y=y_lab)
+            render_label_customizer_expander(plot_key)
+            render_plotnine(p, selected_theme)
             context = build_plot_context("histogram", {"x": x, "binwidth": binwidth, "boundary": boundary, "density": density}, d)
             render_plot_chat(plot_key, context)
         else:
-            tit, x_lab, y_lab = get_plot_labels(f"Boxplot of {x}", "", x)
+            plot_key = f"num_one_box_{x}"
+            tit, x_lab, y_lab = get_plot_labels(f"Boxplot of {x}", "", x, plot_key)
             p = (
                 ggplot(d, aes(x=1, y=x))
                 + geom_boxplot(width=0.3)
                 + xlim(0.5, 1.5)
                 + labs(title=tit, x=x_lab, y=y_lab)
             )
-            render_label_customizer_expander()
+            render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme)
-            plot_key = f"num_one_box_{x}"
             context = build_plot_context("boxplot", {"x": x}, d)
             render_plot_chat(plot_key, context)
 
@@ -643,7 +659,8 @@ with main_tabs[0]:
         if plot_type == "Side-by-side boxplot":
             # For many categories, default to horizontal layout
             n_x = int(d[x].nunique(dropna=True))
-            tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y)
+            plot_key = f"num_cat_box_{x}_{y}"
+            tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y, plot_key)
             p = (
                 ggplot(d, aes(x=x, y=y))
                 + geom_boxplot()
@@ -652,9 +669,8 @@ with main_tabs[0]:
             if n_x > 10:
                 p = p + coord_flip()
             n_cats = n_x if n_x > 10 else None
-            render_label_customizer_expander()
+            render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme, data=d, x_col=x, n_x_categories=n_cats)
-            plot_key = f"num_cat_box_{x}_{y}"
             context = build_plot_context("grouped_boxplot", {"x": x, "y": y}, d)
             render_plot_chat(plot_key, context)
         elif plot_type == "Faceted histogram":
@@ -662,26 +678,27 @@ with main_tabs[0]:
             hist_kwargs = {}
             if binwidth and binwidth > 0:
                 hist_kwargs["binwidth"] = binwidth
-            tit, x_lab, y_lab = get_plot_labels(f"Histogram of {y}, faceted by {x}", y, "Count")
+            plot_key = f"num_cat_facethist_{x}_{y}_{binwidth}"
+            tit, x_lab, y_lab = get_plot_labels(f"Histogram of {y}, faceted by {x}", y, "Count", plot_key)
             p = (
                 ggplot(d, aes(x=y))
                 + geom_histogram(**hist_kwargs)
                 + facet_grid(f"{x} ~ .")
                 + labs(title=tit, x=x_lab, y=y_lab)
             )
-            render_label_customizer_expander()
+            render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme)
-            plot_key = f"num_cat_facethist_{x}_{y}_{binwidth}"
             context = build_plot_context("faceted_histogram", {"x": x, "y": y, "binwidth": binwidth}, d)
             render_plot_chat(plot_key, context)
         elif plot_type == "Line plot":
             d_line = d.copy()
             # check if x is a time series. If so, we must convert x to time series. Otherwise, plotnine does not work. 
             x_parsed = pd.to_datetime(d_line[x], errors="coerce")
+            plot_key = f"num_cat_line_{x}_{y}"
             if x_parsed.notna().mean() >= 0.5:
                 d_line["_x_time"] = x_parsed
                 d_line = d_line.dropna(subset=["_x_time"]).sort_values("_x_time")
-                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y)
+                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y, plot_key)
                 p = (
                     ggplot(d_line, aes(x="_x_time", y=y, group=1))
                     + geom_line()
@@ -689,20 +706,18 @@ with main_tabs[0]:
                     + scale_x_datetime(date_breaks="1 year", date_labels="%Y", expand=(0,0))
                 )
             else:
-                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y)
+                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y, plot_key)
                 p = (
                     ggplot(d_line, aes(x=x, y=y, group=1))
                     + geom_line()
                     + labs(title=tit, x=x_lab, y=y_lab)
                 )
-            render_label_customizer_expander()
+            render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme, data=d_line, x_col=x if x_parsed.notna().mean() < 0.5 else None)
-            plot_key = f"num_cat_line_{x}_{y}"
             context = build_plot_context("line_plot", {"x": x, "y": y}, d)
             render_plot_chat(plot_key, context)
         else:
             # Bar chart and Pie chart: use numeric column directly (no value_counts)
-            # Data assumed: one row per category, numeric col = value (percentage by default, or count)
             if plot_type == "Bar chart":
                 # change option from percentage to count only changes the y label. 
                 value_type = st.radio(
@@ -716,8 +731,9 @@ with main_tabs[0]:
 
                 n_x = int(d[x].nunique(dropna=True))
                 flip_default = n_x > 10
-                flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key="v_numcat_bar_flip")
-                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, ylab)
+                flip = st.checkbox("Flip coordinates (horizontal bars)", value=flip_default, key=f"v_numcat_bar_flip_{x}_{y}")
+                plot_key = f"num_cat_bar_{x}_{y}_{value_type}_{flip}"
+                tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, ylab, plot_key)
                 p = (
                     ggplot(d, aes(x=x, y=y))
                     + geom_col()
@@ -726,12 +742,12 @@ with main_tabs[0]:
                 if flip:
                     p = p + coord_flip()
                 n_cats = n_x if flip and n_x > 10 else None
-                render_label_customizer_expander()
+                render_label_customizer_expander(plot_key)
                 render_plotnine(p, selected_theme, data=d, x_col=x, n_x_categories=n_cats)
-                plot_key = f"num_cat_bar_{x}_{y}_{value_type}_{flip}"
                 context = build_plot_context("bar_chart_preagg", {"x": x, "y": y, "value_type": value_type, "flip": flip}, d)
                 render_plot_chat(plot_key, context)
             else:  # Pie chart
+                plot_key = f"num_cat_pie_{x}_{y}"
                 # pie shows the percentage calculated based on y column no matter y is percentage or count. 
                 fig, ax = plt.subplots(figsize=(3, 3))
                 ax.pie(
@@ -741,14 +757,13 @@ with main_tabs[0]:
                     startangle=90,
                     radius=0.6,
                 )
-                render_label_customizer_expander()
-                tit, _, _ = get_plot_labels(f"{y} by {x}", x, "")
+                render_label_customizer_expander(plot_key)
+                tit, _, _ = get_plot_labels(f"{y} by {x}", x, "", plot_key)
                 ax.set_title(tit)
                 ax.axis("equal")
                 left, center, right = st.columns([0.3, 2, 0.5])
                 with center:
                     st.pyplot(fig, use_container_width=False)
-                plot_key = f"num_cat_pie_{x}_{y}"
                 context = build_plot_context("pie_chart_preagg", {"x": x, "y": y}, d)
                 render_plot_chat(plot_key, context)
 
@@ -770,7 +785,8 @@ with main_tabs[0]:
         for col in [x, y]:
             ensure_numeric(d, col)
 
-        tit, x_lab, y_lab = get_plot_labels(f"{y} vs {x}", x, y)
+        plot_key = f"num_scatter_{x}_{y}_{add_regression}"
+        tit, x_lab, y_lab = get_plot_labels(f"{y} vs {x}", x, y, plot_key)
         p = (
             ggplot(d, aes(x=x, y=y))
             + geom_point()
@@ -778,9 +794,8 @@ with main_tabs[0]:
         )
         if add_regression:
             p = p + geom_smooth(method="lm", se=False, color="red")
-        render_label_customizer_expander()
+        render_label_customizer_expander(plot_key)
         render_plotnine(p, selected_theme)
-        plot_key = f"num_scatter_{x}_{y}_{add_regression}"
         context = build_plot_context("scatter", {"x": x, "y": y, "add_regression": add_regression}, d)
         render_plot_chat(plot_key, context)
 
