@@ -2,6 +2,7 @@
 ToDo.md
 .cursor 
 test/
+DESIGN.md
 
 # --- Streamlit Secrets ---
 .streamlit/secrets.toml
