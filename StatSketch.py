@@ -42,6 +42,7 @@ from plotnine import (
     coord_flip,
     geom_smooth,
     scale_x_datetime,
+    scale_x_discrete,
 )
 from plotnine.data import penguins
 import matplotlib.pyplot as plt
@@ -134,6 +135,26 @@ def render_plotnine(p, theme=None, data: pd.DataFrame | None = None, x_col: str 
     fig.set_size_inches(width, height)
 
     st.pyplot(fig, clear_figure=True, use_container_width=True)
+
+
+def compute_axis_breaks(values, max_labels: int):
+    """
+    Given a 1D sequence/Series of values and an approximate maximum number of labels,
+    return a subset of unique values to use as axis breaks to avoid overcrowding.
+    """
+    if max_labels is None or max_labels <= 0:
+        return list(pd.unique(values))
+
+    uniq = pd.unique(values)
+    # Drop NaNs to avoid ticks at missing positions
+    uniq = [v for v in uniq if pd.notna(v)]
+    n = len(uniq)
+    if n <= max_labels:
+        return list(uniq)
+
+    step = int(np.ceil(n / max_labels))
+    return [uniq[i] for i in range(0, n, step)]
+
 
 ENCODINGS = ["utf-8", "cp1252", "latin1"]
 
@@ -695,22 +716,34 @@ with main_tabs[0]:
             # check if x is a time series. If so, we must convert x to time series. Otherwise, plotnine does not work. 
             x_parsed = pd.to_datetime(d_line[x], errors="coerce")
             plot_key = f"num_cat_line_{x}_{y}"
+
+            # Control how many x-axis labels are shown to avoid overlapping text
+            max_x_labels = st.selectbox(
+                "Customize number of x-axis labels:",
+                options=[5, 8, 10, 15, 20],
+                index=2,
+                key="v_numcat_line_maxlabels",
+            )
+
             if x_parsed.notna().mean() >= 0.5:
                 d_line["_x_time"] = x_parsed
                 d_line = d_line.dropna(subset=["_x_time"]).sort_values("_x_time")
                 tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y, plot_key)
+                breaks = compute_axis_breaks(d_line["_x_time"], max_x_labels)
                 p = (
                     ggplot(d_line, aes(x="_x_time", y=y, group=1))
                     + geom_line()
                     + labs(title=tit, x=x_lab, y=y_lab)
-                    + scale_x_datetime(date_breaks="1 year", date_labels="%Y", expand=(0,0))
+                    + scale_x_datetime(breaks=breaks, date_labels="%Y", expand=(0, 0))
                 )
             else:
                 tit, x_lab, y_lab = get_plot_labels(f"{y} by {x}", x, y, plot_key)
+                breaks = compute_axis_breaks(d_line[x], max_x_labels)
                 p = (
                     ggplot(d_line, aes(x=x, y=y, group=1))
                     + geom_line()
                     + labs(title=tit, x=x_lab, y=y_lab)
+                    + scale_x_discrete(breaks=breaks)
                 )
             render_label_customizer_expander(plot_key)
             render_plotnine(p, selected_theme, data=d_line, x_col=x if x_parsed.notna().mean() < 0.5 else None)
