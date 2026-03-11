@@ -222,23 +222,33 @@ def get_plot_labels(default_title: str, default_x: str, default_y: str, plot_key
     return (t, x, y)
 
 
-def render_label_customizer_expander(plot_key: str):
-    """Expander: choose Title / X axis label / Y axis label, then one text input. Stores overrides per plot_key so switching plots does not reuse another plot's labels."""
+def render_label_customizer_expander(plot_key: str, allowed_fields: tuple[str, ...] = ("Title", "X axis label", "Y axis label")):
+    """
+    Expander: choose which label to edit, then one text input.
+    By default allows Title / X axis label / Y axis label, but callers (e.g., pie charts)
+    can restrict this to just Title.
+    Stores overrides per plot_key so switching plots does not reuse another plot's labels.
+    """
     if "custom_plot_labels" not in st.session_state:
         st.session_state["custom_plot_labels"] = {}
     if plot_key not in st.session_state["custom_plot_labels"]:
         st.session_state["custom_plot_labels"][plot_key] = {"title": "", "x": "", "y": ""}
     labels = st.session_state["custom_plot_labels"][plot_key]
     slot_map = {"Title": "title", "X axis label": "x", "Y axis label": "y"}
+    options = [opt for opt in allowed_fields if opt in slot_map]
+    if not options:
+        options = ["Title"]
     # When switching to a different plot, clear/sync the text input so it doesn't show the previous plot's text
     if st.session_state.get("label_edit_plot_key") != plot_key:
-        current_which = st.session_state.get("label_which", "Title")
+        current_which = st.session_state.get("label_which", options[0])
+        if current_which not in options:
+            current_which = options[0]
         current_slot = slot_map.get(current_which, "title")
         st.session_state["label_input"] = labels.get(current_slot, "")
     with st.expander("Customize title & axis labels", expanded=False):
         label_which = st.selectbox(
             "Edit",
-            ["Title", "X axis label", "Y axis label"],
+            options,
             key="label_which",
         )
         current_slot = slot_map[label_which]
@@ -437,6 +447,19 @@ with main_tabs[1]:
     st.dataframe(info_df, use_container_width=True, hide_index=True)
 
 with main_tabs[0]:
+    mode_help = (
+        "- **One categorical column**: visualize the distribution of a single categorical column "
+        "(e.g., bar or pie chart for age group, region, etc.).\n"
+        "- **Two categorical columns**: compare how two categorical columns are related "
+        "(e.g., side-by-side or stacked bar charts of gender by region).\n"
+        "- **One numeric column**: visualize the distribution of one numeric column "
+        "(e.g., histogram or boxplot of age, income, etc.).\n"
+        "- **Numeric vs categorical columns**: compare numeric values across groups defined by a categorical column "
+        "(e.g., average income by region, or a numeric time series grouped by category).\n"
+        "- **Two numeric columns**: explore the relationship between two numeric columns "
+        "(e.g., scatterplot of height vs weight with an optional regression line)."
+    )
+
     mode = st.radio(
         "Variables",
         [
@@ -447,6 +470,7 @@ with main_tabs[0]:
             "Two numeric columns",
         ],
         horizontal=True,
+        help=mode_help,
     )
 
     # Session state: per-plot custom title/axis labels (custom_plot_labels[plot_key] = {title, x, y})
@@ -537,7 +561,8 @@ with main_tabs[0]:
                 startangle=90,
                 radius=0.6,
             )
-            render_label_customizer_expander(plot_key)
+            # Pie charts have no axes, so allow editing only the title.
+            render_label_customizer_expander(plot_key, allowed_fields=("Title",))
             tit, _, _ = get_plot_labels(f"Distribution of {x}", x, "", plot_key)
             ax.set_title(tit)
             ax.axis("equal")
@@ -790,7 +815,8 @@ with main_tabs[0]:
                     startangle=90,
                     radius=0.6,
                 )
-                render_label_customizer_expander(plot_key)
+                # Pie charts have no axes, so allow editing only the title.
+                render_label_customizer_expander(plot_key, allowed_fields=("Title",))
                 tit, _, _ = get_plot_labels(f"{y} by {x}", x, "", plot_key)
                 ax.set_title(tit)
                 ax.axis("equal")
