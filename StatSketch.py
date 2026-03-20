@@ -639,6 +639,15 @@ with main_tabs[0]:
         ensure_numeric(d, x)
 
         if plot_type == "Histogram":
+            # Reset histogram controls whenever the selected column or dataset changes.
+            df_signature = (tuple(df.columns.tolist()), int(df.shape[0]), int(df.shape[1]))
+            hist_sig = (x, df_signature)
+            if st.session_state.get("v_num1_hist_sig") != hist_sig:
+                st.session_state["v_num1_bw"] = 0.0
+                st.session_state["v_num1_bd"] = float("nan")
+                st.session_state["v_num1_dens"] = False
+                st.session_state["v_num1_hist_sig"] = hist_sig
+
             r2 = st.columns(3)
             with r2[0]:
                 binwidth = st.number_input("Binwidth (0 = auto)", min_value=0.0, value=0.0, step=1.0, key="v_num1_bw")
