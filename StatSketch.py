@@ -442,9 +442,29 @@ main_tabs = st.tabs(["Visualization & Chat", "Data Preview & Inference"])
 with main_tabs[1]:
     st.subheader("Data Preview")
     st.dataframe(df.head(preview_rows), use_container_width=True, hide_index=True)
+
     st.subheader("Inferred Types")
     st.caption("Inferred types are heuristic; you can still pick any column you want.")
     st.dataframe(info_df, use_container_width=True, hide_index=True)
+    st.subheader("Data Statistics")
+    numeric_df = df.select_dtypes(include=["number"])
+    if numeric_df.shape[1] == 0:
+        st.info("No numeric columns available for summary statistics.")
+    else:
+        stats = numeric_df.describe(percentiles=[0.25, 0.5, 0.75]).T
+        stats = stats.rename(
+            columns={
+                "25%": "Q1",
+                "50%": "Median",
+                "75%": "Q3",
+                "std": "Standard Deviation",
+                "min": "Min",
+                "max": "Max",
+                "mean": "Mean",
+            }
+        )
+        stats = stats[["Mean", "Standard Deviation", "Min", "Q1", "Median", "Q3", "Max"]]
+        st.dataframe(stats, use_container_width=True)
 
 with main_tabs[0]:
     mode_help = (
