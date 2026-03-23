@@ -639,6 +639,13 @@ with main_tabs[0]:
         ensure_numeric(d, x)
 
         if plot_type == "Histogram":
+            # Fix this bug: The widget with key "v_num1_bw" was created with a default value but also had its value set via the Session State API.
+            if "v_num1_bw" not in st.session_state:
+                st.session_state["v_num1_bw"] = 0.0
+            if "v_num1_bd" not in st.session_state:
+                st.session_state["v_num1_bd"] = float("nan")
+            if "v_num1_dens" not in st.session_state:
+                st.session_state["v_num1_dens"] = False
             # Reset histogram controls whenever the selected column or dataset changes.
             df_signature = (tuple(df.columns.tolist()), int(df.shape[0]), int(df.shape[1]))
             hist_sig = (x, df_signature)
@@ -650,11 +657,11 @@ with main_tabs[0]:
 
             r2 = st.columns(3)
             with r2[0]:
-                binwidth = st.number_input("Binwidth (0 = auto)", min_value=0.0, value=0.0, step=1.0, key="v_num1_bw")
+                binwidth = st.number_input("Binwidth (0 = auto)", min_value=0.0, step=1.0, key="v_num1_bw")
             with r2[1]:
-                boundary = st.number_input("Boundary (optional)", value=float("nan"), key="v_num1_bd")
+                boundary = st.number_input("Boundary (optional)", key="v_num1_bd")
             with r2[2]:
-                density = st.checkbox("Scale y to density", value=False, key="v_num1_dens")
+                density = st.checkbox("Scale y to density", key="v_num1_dens")
 
             if density:
                 p = ggplot(d, aes(x=x, y="..density.."))
