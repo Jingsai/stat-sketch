@@ -46,6 +46,7 @@ from plotnine import (
 )
 from plotnine.data import penguins
 import matplotlib.pyplot as plt
+from norm import NormalDist
 
 # -----------------------------
 # Helpers: column type detection and coercion
@@ -343,6 +344,180 @@ def render_plot_chat(plot_key: str, context_text: str) -> None:
             st.rerun()
 
 
+def render_normal_calculator() -> None:
+    """Render no-data normal distribution tools (pnorm and qnorm)."""
+    pnorm_modes = ["Left tail: P(X < q)", "Right tail: P(X > q)", "Between: P(q1 < X < q2)"]
+    qnorm_tails = ["Lower tail (left)", "Upper tail (right)"]
+
+    # Persist all calculator inputs across switching calculator/type modes.
+    defaults = {
+        "normal_calc_kind": "Normal Distribution (pnorm)",
+        "normal_mu_saved": 0.0,
+        "normal_sigma_saved": 1.0,
+        "normal_q_saved": 1.96,
+        "normal_q1_saved": -1.96,
+        "normal_q2_saved": 1.96,
+        "normal_p_lower_saved": 0.95,
+        "normal_p_upper_saved": 0.05,
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    def sync_widget_from_saved(widget_key: str, saved_key: str, force_restore: bool = False) -> None:
+        # When a widget is hidden, Streamlit may drop its widget-state key.
+        # Restore from a persistent saved key when the widget reappears.
+        if force_restore or widget_key not in st.session_state:
+            st.session_state[widget_key] = st.session_state[saved_key]
+
+    if "normal_pnorm_mode" not in st.session_state:
+        st.session_state["normal_pnorm_mode"] = pnorm_modes[0]
+    if "normal_qnorm_tail" not in st.session_state:
+        st.session_state["normal_qnorm_tail"] = qnorm_tails[0]
+
+    c_left, c_right = st.columns([1, 2])
+    prob = None
+    cutoff = None
+    fig = None
+    interp_text = ""
+    validation_error = ""
+
+    with c_left:
+        st.markdown("#### Inputs")
+        calc = st.radio(
+            "Calculator",
+            ["Normal Distribution (pnorm)", "Inverse Normal (qnorm)"],
+            horizontal=False,
+            key="normal_calc_kind",
+        )
+        mu_col, sigma_col = st.columns(2, gap="small")
+        with mu_col:
+            sync_widget_from_saved("normal_mu_input", "normal_mu_saved")
+            mu = st.number_input(
+                "Mean (mu)",
+                step=1.0,
+                key="normal_mu_input",
+            )
+            st.session_state["normal_mu_saved"] = mu
+        with sigma_col:
+            sync_widget_from_saved("normal_sigma_input", "normal_sigma_saved")
+            sigma = st.number_input(
+                "Std dev (sigma)",
+                min_value=0.0,
+                step=0.1,
+                key="normal_sigma_input",
+            )
+            st.session_state["normal_sigma_saved"] = sigma
+
+        if calc == "Normal Distribution (pnorm)":
+            mode = st.radio(
+                "Calculation type",
+                pnorm_modes,
+                key="normal_pnorm_mode",
+            )
+            active_signature = "pnorm_between" if mode == "Between: P(q1 < X < q2)" else "pnorm_single"
+            restore_active_inputs = st.session_state.get("normal_active_signature") != active_signature
+            st.session_state["normal_active_signature"] = active_signature
+            if mode == "Between: P(q1 < X < q2)":
+                q1_col, q2_col = st.columns(2, gap="small")
+                with q1_col:
+                    sync_widget_from_saved("normal_q1_input", "normal_q1_saved", force_restore=restore_active_inputs)
+                    q1 = st.number_input(
+                        "q1",
+                        step=0.1,
+                        key="normal_q1_input",
+                    )
+                    st.session_state["normal_q1_saved"] = q1
+                with q2_col:
+                    sync_widget_from_saved("normal_q2_input", "normal_q2_saved", force_restore=restore_active_inputs)
+                    q2 = st.number_input(
+                        "q2",
+                        step=0.1,
+                        key="normal_q2_input",
+                    )
+                    st.session_state["normal_q2_saved"] = q2
+            else:
+                sync_widget_from_saved("normal_q_input", "normal_q_saved", force_restore=restore_active_inputs)
+                q = st.number_input(
+                    "q",
+                    step=0.1,
+                    key="normal_q_input",
+                )
+                st.session_state["normal_q_saved"] = q
+        else:
+            tail = st.radio(
+                "Tail type",
+                qnorm_tails,
+                key="normal_qnorm_tail",
+            )
+            active_signature = "qnorm_lower" if tail == "Lower tail (left)" else "qnorm_upper"
+            restore_active_inputs = st.session_state.get("normal_active_signature") != active_signature
+            st.session_state["normal_active_signature"] = active_signature
+            p_key = "normal_p_lower_input" if tail == "Lower tail (left)" else "normal_p_upper_input"
+            p_saved_key = "normal_p_lower_saved" if tail == "Lower tail (left)" else "normal_p_upper_saved"
+            sync_widget_from_saved(p_key, p_saved_key, force_restore=restore_active_inputs)
+            p = st.number_input(
+                "p (must satisfy 0 < p < 1)",
+                min_value=0.0,
+                max_value=1.0,
+                step=0.01,
+                key=p_key,
+            )
+            st.session_state[p_saved_key] = p
+
+    if sigma <= 0:
+        validation_error = "Standard deviation must be greater than 0."
+    else:
+        model = NormalDist(mu=mu, sigma=sigma)
+        if calc == "Normal Distribution (pnorm)":
+            if mode == "Between: P(q1 < X < q2)":
+                if q1 >= q2:
+                    validation_error = "For a between probability, q1 must be less than q2."
+                else:
+                    prob, fig = model.pnorm(q1, q2=q2)
+                    interp_text = (
+                        f"About {prob*100:.2f}% of observations are expected to fall between "
+                        f"{q1:.2f} and {q2:.2f}."
+                    )
+            else:
+                lower_tail = mode == "Left tail: P(X < q)"
+                prob, fig = model.pnorm(q, lower_tail=lower_tail)
+                if lower_tail:
+                    interp_text = (
+                        f"About {prob*100:.2f}% of observations are expected to be below "
+                        f"{q:.2f}."
+                    )
+                else:
+                    interp_text = (
+                        f"About {prob*100:.2f}% of observations are expected to be above "
+                        f"{q:.2f}."
+                    )
+        else:
+            if p <= 0 or p >= 1:
+                validation_error = "p must be between 0 and 1 (exclusive)."
+            else:
+                lower_tail = tail == "Lower tail (left)"
+                cutoff, fig = model.qnorm(p, lower_tail=lower_tail)
+                if lower_tail:
+                    interp_text = (
+                        f"The cutoff is {cutoff:.3f}: about {p*100:.1f}% of observations "
+                        f"should be below this value."
+                    )
+                else:
+                    interp_text = (
+                        f"The cutoff is {cutoff:.3f}: about {p*100:.1f}% of observations "
+                        f"should be above this value."
+                    )
+
+    with c_right:
+        st.markdown("#### Result")
+        if validation_error:
+            st.error(validation_error)
+            return
+        st.write(interp_text)
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
 # def safe_top_categories(s: pd.Series, top_k: int):
 #     vc = s.value_counts(dropna=False)
 #     if top_k is None or top_k <= 0 or len(vc) <= top_k:
@@ -354,7 +529,19 @@ def render_plot_chat(plot_key: str, context_text: str) -> None:
 # App: page config, sidebar, data load
 # -----------------------------
 st.set_page_config(page_title="StatSketch", layout="wide")
-st.title("StatSketch: No-code Data Visualizer")
+st.title("StatSketch: No-code Stats Lab")
+
+st.sidebar.header("App mode")
+app_mode = st.sidebar.radio(
+    "Choose mode",
+    ["Data Visualization & Inference", "Distribution Tools"],
+    horizontal=False,
+    key="app_mode",
+)
+
+if app_mode == "Distribution Tools":
+    render_normal_calculator()
+    st.stop()
 
 st.sidebar.header("Load data")
 source = st.sidebar.radio(
@@ -436,7 +623,7 @@ info_df = pd.DataFrame(col_info, columns=["column", "inferred_type", "missing", 
 categorical_cols = info_df.query("inferred_type == 'categorical'")["column"].tolist()
 numeric_cols = info_df.query("inferred_type == 'numeric'")["column"].tolist()
 
-main_tabs = st.tabs(["Visualization & Chat", "Data Preview & Inference"])
+main_tabs = st.tabs(["Visualization", "Data Preview & Inference"])
 
 # Data Preview tab rendered first so its content is registered even if first tab has st.stop() somewhere
 with main_tabs[1]:
