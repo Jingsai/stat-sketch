@@ -214,6 +214,7 @@ def get_groq_api_key() -> str | None:
         pass
     return st.session_state.get("groq_api_key_input") or None
 
+# Customize title and axis labels reading from the text box above the plot
 def get_plot_labels(default_title: str, default_x: str, default_y: str, plot_key: str) -> tuple[str, str, str]:
     """Return (title, x_label, y_label). Uses per-plot session-state overrides when non-empty, else defaults."""
     labels = st.session_state.get("custom_plot_labels", {}).get(plot_key, {})
@@ -1069,13 +1070,24 @@ with main_tabs[0]:
 
         plot_key = f"num_scatter_{x}_{y}_{add_regression}"
         tit, x_lab, y_lab = get_plot_labels(f"{y} vs {x}", x, y, plot_key)
+
         p = (
             ggplot(d, aes(x=x, y=y))
             + geom_point()
-            + labs(title=tit, x=x_lab, y=y_lab)
-        )
+            +labs(title=tit, x=x_lab, y=y_lab))
         if add_regression:
+            xv = d[x].to_numpy(dtype=float)
+            yv = d[y].to_numpy(dtype=float)
+            ok = np.isfinite(xv) & np.isfinite(yv)
+            xv, yv = xv[ok], yv[ok]
+            if len(xv) >= 2 and np.ptp(xv) > 0: # more than two points and x values are not all the same
+                slope, intercept = np.polyfit(xv, yv, 1)
+                sign = "+" if intercept >= 0 else "−"
+                abs_b = abs(intercept)
+                eq = f"{y_lab} = {slope:.4g}·{x_lab} {sign} {abs_b:.4g}"
+                st.write(f"##### Linear fit: {eq}")
             p = p + geom_smooth(method="lm", se=False, color="red")
+
         render_label_customizer_expander(plot_key)
         render_plotnine(p, selected_theme)
         context = build_plot_context("scatter", {"x": x, "y": y, "add_regression": add_regression}, d)
