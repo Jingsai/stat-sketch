@@ -1,8 +1,10 @@
 # --- Development Files ---
 ToDo.md
+Design.md
 .cursor 
 test/
-DESIGN.md
+backup/
+.ipynb_checkpoints/
 
 # --- Streamlit Secrets ---
 .streamlit/secrets.toml
