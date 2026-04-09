@@ -4,3 +4,6 @@ numpy
 plotnine
 matplotlib
 groq
+pingouin
+statsmodels
+scipy
