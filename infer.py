@@ -14,192 +14,144 @@ class Infer:
         self.response = None
         self.explanatory = None
         self.success = None
-        self.null_type = None
         self.null_val = 0
         self.test_type = None
         self.direction = "two-sided"
         self.results = pd.DataFrame()
         self.ci = None
         self.stat_val = None
+        self._viz_dist = None
 
-    def specify(self, formula, success=None):
-        if "~" in formula:
-            self.response, self.explanatory = formula.replace(" ", "").split("~")
-        else:
-            self.response = formula.strip()
-            self.explanatory = None
+    def specify(self, response, explanatory=None, success=None, test_type=None):
+        self.response = response
+        self.explanatory = explanatory
         self.success = success
+        self.test_type = test_type
         return self
 
-    def hypothesize(self, null="point", p=0):
-        self.null_type = null
+    def hypothesize(self, p=0):
+        # We only need the value (p0, mu0, or the dict for GOF)
         self.null_val = p
         return self
 
     def calculate(self, direction="two-sided", conf_level=0.95, paired=False):
         self.direction = direction
-        y = self.data[self.response]
-        n = len(self.data)
         
-        # --- 1. CATEGORICAL RESPONSE (Ch 15, 16, 17, 18) ---
-        if self.success is not None or y.dtype == 'object':
-            # Chapter 15: One-Sample Proportion
-            if self.explanatory is None:
-                self.test_type = 'z'
-                count = (y == self.success).sum()
-                
-                # Map 'infer' directions to 'statsmodels'
-                alt = {'two-sided': 'two-sided', 'greater': 'larger', 'less': 'smaller'}[direction]
-                
-                """
-                https://www.statsmodels.org/dev/generated/statsmodels.stats.proportion.proportions_ztest.html
-                prop_var if not set up, the model uses sample proportaions, not the null value, 
-                in calculation the z score of p hat in the hypothesis testing. 
-                """
-                # HYPOTHESIS TEST: Using prop_var=self.null_val to use p0 in denominator
-                self.stat_val, p_val = proportions_ztest(
-                    count, n, value=self.null_val, 
-                    alternative=alt, prop_var=self.null_val
-                )
-                
-                # CONFIDENCE INTERVAL: Uses p-hat by default (Chapter 15 requirement)
-                self.ci = proportion_confint(count, n, alpha=1-conf_level, method='normal')
-                
-                self.results = pd.DataFrame({
-                    'stat': [self.stat_val], 
-                    'p_val': [p_val], 
-                    'p_hat': [count/n],
-                    'null_p': [self.null_val]
-                })
-
-            # Chapter 16: Two-Sample Proportions
-            elif self.data[self.explanatory].nunique() == 2:
-                self.test_type = 'z'
-                
-                # Get counts and nobs for both groups
-                group_data = self.data.groupby(self.explanatory)[self.response]
-                counts = group_data.apply(lambda x: (x == self.success).sum()).values
-                nobs = group_data.count().values
-                
-                # HYPOTHESIS TEST: Using pooled proportion for the Z-stat
-                alt = {'two-sided': 'two-sided', 'greater': 'larger', 'less': 'smaller'}[direction]
-                self.stat_val, p_val = proportions_ztest(counts, nobs, alternative=alt)
-
-                # CONFIDENCE INTERVAL: Using the specialized 2-independent function
-                # method='wald' matches the standard (p1-p2) +/- Z*SE formula in the book
-                low, high = confint_proportions_2indep(
-                    counts[0], nobs[0], counts[1], nobs[1], 
-                    method='wald', compare='diff', alpha=1-conf_level
-                )
-                self.ci = (low, high)
-
-                self.results = pd.DataFrame({
-                    'stat': [self.stat_val], 
-                    'p_val': [p_val], 
-                    'p_hat_1': [counts[0]/nobs[0]], 
-                    'p_hat_2': [counts[1]/nobs[1]],
-                    'diff': [(counts[0]/nobs[0]) - (counts[1]/nobs[1])]
-                })
+        # Dispatch Map
+        engines = {
+            'one prop':  lambda: self._engine_one_prop(direction, conf_level),
+            'two props': lambda: self._engine_two_props(direction, conf_level),
+            'chisq_gof':       lambda: self._engine_chisq_gof(),
+            'chisq_indep':     lambda: self._engine_chisq_indep(),
+            'one mean':  lambda: self._engine_one_mean(direction, conf_level),
+            'two means': lambda: self._engine_paired(direction, conf_level) if paired else self._engine_two_means(direction, conf_level),
+            'anova':     lambda: self._engine_anova()
+        }
+        
+        if self.test_type not in engines:
+            raise ValueError(f"Unknown test_type. Use: {list(engines.keys())}")
             
-            # Chapter 17: Chi-Square Goodness of Fit
-            # Triggered if self.explanatory is None AND self.null_type is "point" with multiple probabilities
-            elif self.explanatory is None and isinstance(self.null_val, (list, np.ndarray, dict)):
-                self.test_type = 'chisq'
-                
-                # Get observed counts
-                observed_counts = y.value_counts().sort_index()
-                n = len(y)
-                
-                # Align expected probabilities with observed categories
-                if isinstance(self.null_val, dict):
-                    expected_probs = np.array([self.null_val[cat] for cat in observed_counts.index])
-                else:
-                    expected_probs = np.array(self.null_val)
-                
-                expected_counts = expected_probs * n
-                
-                # Run Chi-Square Goodness of Fit
-                chisq_stat, p_val = stats.chisquare(f_obs=observed_counts, f_exp=expected_counts)
-                
-                self.results = pd.DataFrame({
-                    'chi2': [chisq_stat], 
-                    'p_val': [p_val], 
-                    'dof': [len(observed_counts) - 1]
-                })
-                self.stat_val = chisq_stat
-                
-            # Chapter 18: Chi-Square
-            else:
-                self.test_type = 'chisq'
-                expected, observed, stats_df = pg.chi2_independence(self.data, x=self.explanatory, y=self.response)
-                self.results = stats_df[stats_df['test'] == 'pearson']
-                self.stat_val = self.results['chi2'].iloc[0]
+        return engines[self.test_type]()
 
-        # --- 2. NUMERICAL RESPONSE (Ch 19, 20, 21, 22) ---
-        else:
-            # Chapter 19: One-Sample T-test
-            if self.explanatory is None:
-                self.test_type = 't'
-                res = pg.ttest(y, y0=self.null_val, confidence=conf_level, alternative=direction)
-                self.results, self.ci, self.stat_val = res, res['CI95%'].values[0], res['T'].iloc[0]
+    # --- ENGINES ---
 
-            else:
-                groups = self.data[self.explanatory].nunique()
-                # Chapter 20/21: Two-Sample or Paired T-test
-                if groups == 2:
-                    self.test_type = 't'
-                    g1_n, g2_n = self.data[self.explanatory].unique()[:2]
-                    g1 = y[self.data[self.explanatory] == g1_n]
-                    g2 = y[self.data[self.explanatory] == g2_n]
-                    res = pg.ttest(g1, g2, paired=paired, confidence=conf_level, alternative=direction)
-                    self.results, self.ci, self.stat_val = res, res['CI95%'].values[0], res['T'].iloc[0]
-                
-                # Chapter 22: ANOVA
-                else:
-                    self.test_type = 'f'
-                    self.results = pg.anova(dv=self.response, between=self.explanatory, data=self.data)
-                    self.stat_val = self.results['F'].iloc[0]
-                    # CI for ANOVA group means via bootstrapping
-                    self.ci = pg.compute_bootci(y, func='mean', confidence=conf_level)
+    def _engine_one_prop(self, direction, conf_level):
+        y = self.data[self.response]
+        count, n = (y == self.success).sum(), len(y)
+        alt = {'two-sided': 'two-sided', 'greater': 'larger', 'less': 'smaller'}[direction]
+        self.stat_val, p_val = proportions_ztest(count, n, value=self.null_val, alternative=alt, prop_var=self.null_val)
+        self.ci = proportion_confint(count, n, alpha=1-conf_level, method='normal')
+        self.results = pd.DataFrame({'stat': [self.stat_val], 'p_val': [p_val], 'p_hat': [count/n]})
+        self._viz_dist = 'z'
+        return self
 
+    def _engine_two_props(self, direction, conf_level):
+        groups = self.data.groupby(self.explanatory)[self.response]
+        counts = groups.apply(lambda x: (x == self.success).sum()).values
+        nobs = groups.count().values
+        alt = {'two-sided': 'two-sided', 'greater': 'larger', 'less': 'smaller'}[direction]
+        self.stat_val, p_val = proportions_ztest(counts, nobs, alternative=alt)
+        low, high = confint_proportions_2indep(counts[0], nobs[0], counts[1], nobs[1], method='wald', alpha=1-conf_level)
+        self.ci = (low, high)
+        self.results = pd.DataFrame({'stat': [self.stat_val], 'p_val': [p_val], 'diff': [(counts[0]/nobs[0]) - (counts[1]/nobs[1])]})
+        self._viz_dist = 'z'
+        return self
+
+    def _engine_chisq_gof(self):
+        obs = self.data[self.response].value_counts().sort_index()
+        exp_p = np.array([self.null_val[cat] for cat in obs.index]) if isinstance(self.null_val, dict) else np.array(self.null_val)
+        self.stat_val, p_val = stats.chisquare(f_obs=obs, f_exp=exp_p * len(self.data))
+        self.results = pd.DataFrame({'chi2': [self.stat_val], 'p_val': [p_val], 'dof': [len(obs)-1]})
+        self._viz_dist = 'chisq'
+        return self
+
+    def _engine_chisq_indep(self):
+        _, _, stats_df = pg.chi2_independence(self.data, x=self.explanatory, y=self.response)
+        res = stats_df[stats_df['test'] == 'pearson']
+        self.stat_val, p_val = res['chi2'].iloc[0], res['pval'].iloc[0]
+        self.results = pd.DataFrame({'chi2': [self.stat_val], 'p_val': [p_val], 'dof': [res['dof'].iloc[0]]})
+        self._viz_dist = 'chisq'
+        return self
+
+    def _engine_one_mean(self, direction, conf_level):
+        res = pg.ttest(self.data[self.response], y=self.null_val, confidence=conf_level, alternative=direction)
+        self.results, self.ci, self.stat_val = res, res['CI95%'].values[0], res['T'].iloc[0]
+        self.results = self.results[['T', 'dof', 'p-val']]
+        self._viz_dist = 't'
+        return self
+
+    def _engine_two_means(self, direction, conf_level):
+        names = self.data[self.explanatory].unique()
+        g1 = self.data[self.data[self.explanatory] == names[0]][self.response]
+        g2 = self.data[self.data[self.explanatory] == names[1]][self.response]
+        res = pg.ttest(g1, g2, confidence=conf_level, alternative=direction)
+        self.results, self.ci, self.stat_val = res, res['CI95%'].values[0], res['T'].iloc[0]
+        self.results = self.results[['T', 'dof', 'p-val']]
+        self._viz_dist = 't'
+        return self
+
+    def _engine_paired(self, direction, conf_level):
+        # Specific for Ch 20 (e.g., UCLA vs Amazon columns)
+        res = pg.ttest(self.data[self.response], self.data[self.explanatory], paired=True, confidence=conf_level, alternative=direction)
+        self.results, self.ci, self.stat_val = res, res['CI95%'].values[0], res['T'].iloc[0]
+        self.results = self.results[['T', 'dof', 'p-val']]
+        self._viz_dist = 't'
+        return self
+
+    def _engine_anova(self):
+        self.results = pg.anova(dv=self.response, between=self.explanatory, data=self.data)
+        self.stat_val, self._viz_dist = self.results['F'].iloc[0], 'f'
+        self.results = self.results[["ddof1", "ddof2", "F", "p-unc"]]
         return self
 
     def visualize(self):
         fig, ax = plt.subplots(figsize=(9, 5))
-        
-        # Distribution Selection
-        if self.test_type == 'z':
+        if self._viz_dist == 'z':
             dist, x = stats.norm, np.linspace(-4, 4, 1000)
-        elif self.test_type == 't':
-            df = self.results['dof'].iloc[0]
-            dist, x = stats.t(df), np.linspace(-4, 4, 1000)
-        elif self.test_type == 'chisq':
-            df = self.results['dof'].iloc[0]
-            dist, x = stats.chi2(df), np.linspace(0, self.stat_val + 5, 1000)
-        elif self.test_type == 'f':
-            # Df calculation for visualization
-            dfn = self.results['SS'].size - 1
-            dfd = len(self.data) - (dfn + 1)
+        elif self._viz_dist == 't':
+            dist, x = stats.t(self.results['dof'].iloc[0]), np.linspace(-4, 4, 1000)
+        elif self._viz_dist == 'chisq':
+            dist, x = stats.chi2(self.results['dof'].iloc[0]), np.linspace(0, self.stat_val + 10, 1000)
+        elif self._viz_dist == 'f':
+            dfn, dfd = self.results['ddof1'], self.results['ddof2']
             dist, x = stats.f(dfn, dfd), np.linspace(0, self.stat_val + 2, 1000)
 
         pdf = dist.pdf(x)
         ax.plot(x, pdf, 'k-', lw=2)
-        ax.axvline(self.stat_val, color='blue', ls='--', label=f'Observed Stat: {self.stat_val:.3f}')
+        ax.axvline(self.stat_val, color='blue', ls='--', label=f'Stat: {self.stat_val:.3f}')
         
-        # Shading
-        if self.test_type in ['z', 't']:
+        if self._viz_dist in ['z', 't']:
             if self.direction == "two-sided":
                 ax.fill_between(x, 0, pdf, where=(np.abs(x) > np.abs(self.stat_val)), color='red', alpha=0.3)
-            elif self.direction == "less":
-                ax.fill_between(x, 0, pdf, where=(x < self.stat_val), color='red', alpha=0.3)
-            elif self.direction == "greater":
-                ax.fill_between(x, 0, pdf, where=(x > self.stat_val), color='red', alpha=0.3)
+            else:
+                shading = (x < self.stat_val) if self.direction == "less" else (x > self.stat_val)
+                ax.fill_between(x, 0, pdf, where=shading, color='red', alpha=0.3)
         else:
-            # Chi-square and F are always right-tailed
             ax.fill_between(x, 0, pdf, where=(x > self.stat_val), color='red', alpha=0.3)
             
-        ax.set_title(f"Null Distribution ({self.test_type.upper()})")
+        ax.set_title(f"Null Distribution: {self.test_type.upper()}")
         ax.legend()
+        fig.tight_layout()
         return fig
 
 
@@ -225,6 +177,18 @@ def _two_level_categorical_columns(df: pd.DataFrame, exclude: str | None = None)
     return sorted(out, key=str.lower)
 
 
+def _categorical_columns_excluding(df: pd.DataFrame, exclude: str) -> list[str]:
+    """Other categorical columns (any number of levels), for chi-square independence."""
+    out: list[str] = []
+    for c in df.columns:
+        if c == exclude:
+            continue
+        s = df[c]
+        if is_categorical(s):
+            out.append(c)
+    return sorted(out, key=str.lower)
+
+
 def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     mode_help = (
         "- **One proportion**: Test the proportion of a single categorical column against a null hypothesis.\n"
@@ -241,8 +205,8 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         [
             "One proportion",
             "Two proportions",
-            "Chisq for indenpedence",
             "Chisq for goodness of fit",
+            "Chisq for indenpedence",
             "One mean",
             "Two means",
             "Paired means",
@@ -323,8 +287,8 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         with right:
             test = (
                 Infer(work)
-                .specify(formula=col, success=success)
-                .hypothesize(null="point", p=null_p)
+                .specify(response=col, success=success, test_type="one prop")
+                .hypothesize(p=null_p)
                 .calculate(direction=direction)
             )
             st.dataframe(test.results, use_container_width=True, hide_index=True)
@@ -422,11 +386,15 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 st.warning("Every row is a success within both groups; proportions are 1.")
 
         with right:
-            formula = f"{response}~{explanatory}"
             test = (
                 Infer(work)
-                .specify(formula=formula, success=success)
-                .hypothesize(null="point", p=0.0)
+                .specify(
+                    response=response,
+                    explanatory=explanatory,
+                    success=success,
+                    test_type="two props",
+                )
+                .hypothesize(p=0)
                 .calculate(direction=direction)
             )
             st.dataframe(test.results, use_container_width=True, hide_index=True)
@@ -444,7 +412,76 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             st.pyplot(fig)
             plt.close(fig)
 
+    elif mode == "Chisq for indenpedence":
+        cat_cols = _categorical_columns_for_inference(df)
+        if not cat_cols:
+            st.warning(
+                "No categorical columns found. Use columns inferred as categorical in Data Preview, or upload different data."
+            )
+            return
+
+        left, right = st.columns(2, gap="large")
+
+        with left:
+            row1a, row1b = st.columns(2)
+            with row1a:
+                response = st.selectbox(
+                    "Response variable",
+                    cat_cols,
+                    key="infer_chisq_indep_response",
+                    help="One categorical variable in the contingency table.",
+                )
+            expl_candidates = _categorical_columns_excluding(df, exclude=response)
+            if not expl_candidates:
+                st.error(
+                    "Need at least two categorical columns. Pick a different dataset or mark another column as categorical."
+                )
+                return
+            with row1b:
+                explanatory = st.selectbox(
+                    "Explanatory variable",
+                    expl_candidates,
+                    key="infer_chisq_indep_explanatory",
+                    help="Second categorical variable; independence is tested between these two.",
+                )
+
+            cols_needed = [response, explanatory]
+            work = df[cols_needed].copy()
+            if drop_na_rows:
+                work = work.dropna(subset=cols_needed)
+            if work.empty:
+                st.error("No rows left after dropping missing values in the selected columns.")
+                return
+            if not is_categorical(work[response]):
+                st.error("Response must be categorical.")
+                return
+            if not is_categorical(work[explanatory]):
+                st.error("Explanatory must be categorical.")
+                return
+            if work[response].nunique() < 2:
+                st.error("Response needs at least two categories in the filtered data for this test.")
+                return
+            if work[explanatory].nunique() < 2:
+                st.error("Explanatory needs at least two categories in the filtered data for this test.")
+                return
+
+        with right:
+            test = (
+                Infer(work)
+                .specify(
+                    response=response,
+                    explanatory=explanatory,
+                    test_type="chisq_indep",
+                )
+                .hypothesize(p=0)
+                .calculate()
+            )
+            st.dataframe(test.results, use_container_width=True, hide_index=True)
+            fig = test.visualize()
+            st.pyplot(fig)
+            plt.close(fig)
+
     else:
         st.info(
-            "This test type is not implemented yet. Choose **One proportion** or **Two proportions** to run inference."
+            "This test type is not implemented yet. Choose **One proportion**, **Two proportions**, or **Chisq for indenpedence** to run inference."
         )
