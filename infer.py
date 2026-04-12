@@ -7,6 +7,7 @@ import streamlit as st
 from scipy import stats
 from statsmodels.stats.proportion import proportions_ztest, proportion_confint, confint_proportions_2indep
 
+from groq_chat import GROQ_SYSTEM_INFERENCE, render_context_chat
 from helper import is_categorical, is_numeric
 
 """
@@ -281,6 +282,42 @@ def _infer_display_ci(lo: float, hi: float) -> tuple[float, float]:
     )
 
 
+def _infer_ai_clear_context() -> None:
+    st.session_state.pop("infer_ai_context", None)
+
+
+def _infer_ai_store_context(test: "Infer", mode_label: str, drop_na_rows: bool, **params: object) -> None:
+    """Save a text snapshot for the inference-tab AI chat (parameters + full numeric results + CI)."""
+    lines = [
+        f"Hypothesis test (UI mode): {mode_label}",
+        f"Sidebar: drop_na_rows={drop_na_rows}",
+        "",
+        "Inputs and settings:",
+    ]
+    for k, v in sorted(params.items()):
+        lines.append(f"  {k}: {v}")
+    lines.extend(["", "Results table (numeric, as computed):"])
+    lines.append(test.results.to_string())
+    lines.append("")
+    if test.ci is not None:
+        lines.append(f"Confidence interval (exact): {test.ci}")
+        if len(test.ci) >= 2:
+            lo_r, hi_r = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
+            lines.append(f"Confidence interval (rounded to 4 dp, matching on-screen CI table): ({lo_r}, {hi_r})")
+    else:
+        lines.append("Confidence interval: not applicable for this test.")
+    lines.extend(
+        [
+            "",
+            f"Internal engine test_type: {test.test_type}",
+            f"Alternative / direction: {test.direction}",
+            f"Confidence level used in Infer.calculate: {test.conf_level}",
+            f"Paired flag (two-sample path): {test.paired}",
+        ]
+    )
+    st.session_state["infer_ai_context"] = "\n".join(lines)
+
+
 def _categorical_columns_excluding(df: pd.DataFrame, exclude: str) -> list[str]:
     """Other categorical columns (any number of levels), for chi-square independence."""
     out: list[str] = []
@@ -333,6 +370,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     )
 
     if mode == "One proportion":
+        _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
@@ -435,8 +473,21 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "One proportion",
+                drop_na_rows,
+                categorical_variable=col,
+                success_value=success,
+                null_proportion_H0=null_p,
+                alternative_hypothesis=direction,
+                confidence_level_input=conf_level_raw,
+                confidence_level_numeric=conf_level,
+                sample_size_n=len(work),
+            )
 
     elif mode == "Two proportions":
+        _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
@@ -555,8 +606,21 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "Two proportions",
+                drop_na_rows,
+                response_variable=response,
+                explanatory_variable=explanatory,
+                success_value=success,
+                alternative_hypothesis=direction,
+                confidence_level_input=conf_level_raw,
+                confidence_level_numeric=conf_level,
+                sample_size_n=len(work),
+            )
 
     elif mode == "Chisq for goodness of fit":
+        _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
@@ -653,8 +717,21 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            h0_pairs = {str(c): float(p) for c, p in zip(cats, null_probs.tolist())}
+            _infer_ai_store_context(
+                test,
+                "Chi-square goodness of fit",
+                drop_na_rows,
+                categorical_variable=col,
+                null_H0_probability_by_category=h0_pairs,
+                observed_counts_by_category=obs_counts.to_dict(),
+                expected_counts_under_H0=(fit_table["expected_under_H0"].to_dict()),
+                probability_sum_checked=prob_sum,
+                sample_size_n=int(obs_counts.sum()),
+            )
 
     elif mode == "Chisq for indenpedence":
+        _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
@@ -722,8 +799,17 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "Chi-square independence",
+                drop_na_rows,
+                response_variable=response,
+                explanatory_variable=explanatory,
+                sample_size_n=len(work),
+            )
 
     elif mode == "One mean":
+        _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
@@ -803,8 +889,20 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "One mean (one-sample t)",
+                drop_na_rows,
+                response_variable=response,
+                null_mean_mu0=mu0,
+                alternative_hypothesis=direction,
+                confidence_level_input=conf_level_raw,
+                confidence_level_numeric=conf_level,
+                sample_size_n=len(work),
+            )
 
     elif mode == "Two means":
+        _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
@@ -899,8 +997,21 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "Two means (independent t)",
+                drop_na_rows,
+                response_variable=response,
+                explanatory_grouping=explanatory,
+                alternative_hypothesis=direction,
+                confidence_level_input=conf_level_raw,
+                confidence_level_numeric=conf_level,
+                sample_size_n=len(work),
+                paired_independent="independent two-sample",
+            )
 
     elif mode == "Paired means":
+        _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
@@ -981,8 +1092,21 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "Paired means (paired t)",
+                drop_na_rows,
+                column_1=col1,
+                column_2=col2,
+                alternative_hypothesis=direction,
+                confidence_level_input=conf_level_raw,
+                confidence_level_numeric=conf_level,
+                complete_pairs_n=len(work),
+                paired_independent="paired",
+            )
 
     elif mode == "ANOVA":
+        _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
@@ -1044,6 +1168,30 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
+            _infer_ai_store_context(
+                test,
+                "One-way ANOVA",
+                drop_na_rows,
+                response_variable=response,
+                explanatory_factor=explanatory,
+                number_of_groups=n_groups,
+                sample_size_n=len(work),
+                note="No confidence interval for this ANOVA summary in the app.",
+            )
 
     else:
+        _infer_ai_clear_context()
         st.info("Choose a hypothesis test from the options above.")
+
+    if st.session_state.get("infer_ai_context"):
+        # st.divider()
+        render_context_chat(
+            "infer_tab",
+            st.session_state["infer_ai_context"],
+            expander_title=(
+                "Ask AI about this test (for example: interpret the p-value, explain the confidence interval, "
+                "or state a conclusion at α = 0.05):"
+            ),
+            input_placeholder="Ask about this inference result...",
+            system_preamble=GROQ_SYSTEM_INFERENCE,
+        )
