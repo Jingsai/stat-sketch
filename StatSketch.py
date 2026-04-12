@@ -20,7 +20,7 @@ from helper import (
     load_example_csv,
 )
 from visualization import THEME_MAP, render_visualization_tab
-from distribution import render_normal_calculator
+from distribution import DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR, render_distribution_tools
 from infer import render_inference_tab
 
 st.set_page_config(page_title="StatSketch", layout="wide")
@@ -35,24 +35,14 @@ app_mode = st.sidebar.radio(
 )
 
 if app_mode == "Distribution Tools":
-    render_normal_calculator()
+    render_distribution_tools()
     st.stop()
 
-# When the normal calculator is not shown, Streamlit may keep widget session keys with
-# stale values. sync_widget_from_saved in distribution.py only restores from *_saved
-# when the widget key is missing—so a leftover normal_sigma_input (e.g. 0) would
-# win over normal_sigma_saved (1.0). Clear calculator input keys whenever leaving
-# Distribution Tools so return visits restore from *_saved.
-_DIST_CALC_INPUT_KEYS = (
-    "normal_mu_input",
-    "normal_sigma_input",
-    "normal_q_input",
-    "normal_q1_input",
-    "normal_q2_input",
-    "normal_p_lower_input",
-    "normal_p_upper_input",
-)
-for _k in _DIST_CALC_INPUT_KEYS:
+# When Distribution Tools is not shown, Streamlit may keep widget session keys with
+# stale values. distribution._sync_widget_from_saved only restores from *_saved when
+# the widget key is missing. Clear distribution input keys when leaving this mode so
+# return visits restore from *_saved (see DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR).
+for _k in DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR:
     st.session_state.pop(_k, None)
 
 if app_mode == "User Manual":
