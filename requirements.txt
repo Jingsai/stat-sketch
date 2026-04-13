@@ -1,9 +1,9 @@
 streamlit==1.56.0
-pandas==2.2.3
-numpy==1.26.4
-plotnine==0.14.5
-matplotlib==3.10.1
-groq==1.0.0
+pandas
+numpy
+plotnine
+matplotlib
+groq
 pingouin==0.5.5
-statsmodels==0.14.4
-scipy==1.11.4
+statsmodels
+scipy
