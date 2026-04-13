@@ -81,7 +81,7 @@ def render_label_customizer_expander(plot_key: str, allowed_fields: tuple[str, .
         labels[current_slot] = st.session_state.get("label_input", "")
     st.session_state["label_edit_plot_key"] = plot_key
 
-
+# rotate x-axis labels if there are more than 4 and less than 10 unique values
 def theme_x_labels(df: pd.DataFrame, x: str):
     n = int(df[x].nunique(dropna=True))
     if 4 < n < 10:
@@ -436,6 +436,9 @@ def render_visualization_tab(df: pd.DataFrame, drop_na_rows: bool, selected_them
             d_line = d.copy()
             x_parsed = pd.to_datetime(d_line[x], errors="coerce")
             plot_key = f"num_cat_line_{x}_{y}"
+            # max_x_labels is the maximum number of x-axis labels to display, 
+            # no matter how many unique values there are in the x data. 
+            # default is 10, so 5-20 are options.
             max_x_labels = st.selectbox(
                 "Customize number of x-axis labels:",
                 options=[5, 8, 10, 15, 20],

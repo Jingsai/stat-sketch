@@ -8,7 +8,56 @@ _USE_CASE_IMAGE_DIR = Path(__file__).resolve().parent / "images"
 
 # Optional screenshots: (topic slug, example title) -> filename under images/
 _EXAMPLE_IMAGES: dict[tuple[str, str], str] = {
-    ("viz", "Histogram"): "histogram_one_num.png",
+    ("viz", "Histogram"): "viz_histogram_num.png",
+    ("viz", "Box plot"): "viz_boxplot_num_cat.png",
+    ("viz", "Scatter plot"): "viz_scatter_num_num.png",
+    ("viz", "Bar charts"): "viz_bar_cat_tilt.png",
+    ("viz", "Pie chart"): "viz_pie_num_cat.png",
+    ("viz", "Linear regression"): "viz_linear_regression.png",
+    ("viz", "Line plot"): "viz_line_plot.png",
+}
+
+# Shown above the matching screenshot (how the figure was produced)
+_EXAMPLE_IMAGE_INTRO: dict[tuple[str, str], str] = {
+    ("viz", "Histogram"): """The histogram below was made by following steps:
+
+1. In the sidebar, set Data source to Example dataset and choose Palmer penguins.
+2. Open the Visualization tab. Under Variables, select One numeric column.
+3. Set Numeric column to bill_depth_mm and Plot type to Histogram (adjust bins if you like).""",
+    ("viz", "Box plot"): """The box plot below was made by following steps:
+
+1. In the sidebar, set Data source to Example dataset and choose Palmer penguins.
+2. Open the Visualization tab. Under Variables, select Numeric vs categorical columns.
+3. Set Numeric column to bill_length_mm, Categorical column to island, and Plot type to Side-by-side boxplot.
+4. Expand Customize title & axis labels below the plot and edit the title, x-axis label, and y-axis label.""",
+    ("viz", "Scatter plot"): """The scatter plot below was made by following steps:
+
+1. In the sidebar, set Data source to Example dataset and choose Palmer penguins.
+2. Open the Visualization tab. Under Variables, select Two numeric columns.
+3. Set X (numeric) to bill_length_mm and Y (numeric) to bill_depth_mm.""",
+    ("viz", "Bar charts"): """The bar chart below was made by following steps:
+
+1. In the sidebar, set Data source to Upload file and upload police_killings.csv with the file uploader (comma separator if prompted).
+2. Open the Visualization tab. Under Variables, select One categorical column.
+3. Set Categorical column to month and Plot type to Bar chart.""",
+    ("viz", "Pie chart"): """The pie chart below was made by following steps:
+
+1. In the sidebar, set Data source to Upload file and upload eg10-01.csv with the file uploader (comma separator if prompted).
+2. Open the Visualization tab. Under Variables, select Numeric vs categorical columns.
+3. Set Numeric column to Percent, Categorical column to Level of education, and Plot type to Pie chart.""",
+    ("viz", "Linear regression"): """The scatter plot with regression line below was made by following steps:
+
+1. In the sidebar, set Data source to Example dataset and choose birthwt.
+2. Open the Visualization tab. Under Variables, select Two numeric columns.
+3. Set X (numeric) to bwt and Y (numeric) to lwt.
+4. Turn on Add linear regression line.
+5. Expand Customize title & axis labels below the plot and edit the title, x-axis label, and y-axis label.""",
+    ("viz", "Line plot"): """The line plot below was made by following steps:
+
+1. In the sidebar, set Data source to Upload file and upload ex10-02.csv with the file uploader (comma separator if prompted).
+2. Open the Visualization tab. Under Variables, select Numeric vs categorical columns.
+3. Set Numeric column to price, Categorical column to date, and Plot type to Line plot.
+4. Use Customize number of x-axis labels to pick how many x-axis tick marks to aim for (default 10; choices 5, 8, 10, 15, or 20).""",
 }
 
 _USE_CASE_TOPICS = (
@@ -64,21 +113,33 @@ Choose **Two numeric columns**, pick **X** and **Y**. The app draws a scatter of
     (
         "Bar charts",
         """
-**Bar charts with many categories**
+Bar charts
 
-For counts of one variable, use **One categorical column** and **Bar chart**. For two categorical variables, use **Two categorical columns** and a bar style you prefer.
+1. Three ways to draw a bar chart in this app:
 
-With several categories on the x-axis, labels may be tilted automatically. For many categories, turn on **Flip coordinates (horizontal bars)**; the app often enables this by default when there are more than ten categories.
+   1. One categorical column — each row is an observation; the app counts how often each category appears and draws bars for those counts (or proportions if you choose that option).
+
+   2. Two categorical columns — pick an X category and a fill/group category; choose a bar style such as side-by-side (dodge), stacked, or proportional (fill).
+
+   3. Numeric vs categorical columns with Plot type Bar chart — your table already has one category column and one numeric column giving the bar height (counts or percentages per category); the app plots those values directly.
+
+2. Tilted x-axis labels and horizontal bars
+
+   If the variable on the x-axis has strictly more than 4 and strictly fewer than 10 distinct categories (that is, 5 through 9 unique values), the app rotates the x-axis category labels for readability.
+
+   If there are more than 10 distinct categories on the x-axis, the Flip coordinates (horizontal bars) option defaults to on so bars run horizontally; you can still turn it off if you want vertical bars.
+
+3. Example screenshot and steps to reproduce it follow.
 """,
     ),
     (
         "Pie chart",
         """
-**Pie chart**
+**Pie chart (numeric vs categorical)**
 
-For a **single categorical** column, choose **One categorical column** and set **Plot type** to **Pie chart** to show category shares as slices (with optional **Show frequency table** to see counts).
+Choose **Numeric vs categorical columns**, assign the **Categorical** column (slice labels) and **Numeric** column (counts or percentages that determine slice size), and set **Plot type** to **Pie chart**.
 
-If your table already has one category column and one numeric column of counts or percentages, use **Numeric vs categorical columns**, set **Plot type** to **Pie chart**, and map them to the categorical and numeric fields.
+You can also make a pie from a single raw categorical column under **One categorical column** and **Pie chart**; the app counts rows per category. The example screenshot and steps below use the numeric-vs-categorical path with pre-tabulated Percent and Level of education.
 """,
     ),
     (
@@ -86,7 +147,9 @@ If your table already has one category column and one numeric column of counts o
         """
 **Linear fit and equation**
 
-Under **Two numeric columns**, turn on **Add linear regression line** to overlay a least-squares line on the scatter plot. The app shows the **linear equation** (slope and intercept) above the chart.
+Under **Two numeric columns**, pick **X** and **Y**, then turn on **Add linear regression line** to draw a least-squares line on the scatter plot. The app prints the fitted **linear equation** above the chart using your axis labels (default column names until you change them under **Customize title & axis labels**).
+
+Example: with the **birthwt** example dataset, **X (numeric)** = **bwt** (baby’s birth weight) and **Y (numeric)** = **lwt** (mother’s weight), after customizing the axis wording the line matches **Mother's weight = 0.007789·Baby's birth weight + 106.9**. A screenshot and step-by-step setup follow.
 """,
     ),
     (
@@ -94,7 +157,11 @@ Under **Two numeric columns**, turn on **Add linear regression line** to overlay
         """
 **Line plot and crowded x-axis labels**
 
-Under **Numeric vs categorical columns**, set **Plot type** to **Line plot**. Use **Customize number of x-axis labels** (e.g. 5, 8, 10, 15, 20) to show fewer ticks so labels do not overlap. If most x values parse as dates, the axis is treated as a time scale.
+Under **Numeric vs categorical columns**, set **Plot type** to **Line plot**. Put the series you want on the vertical axis in **Numeric column** (for example **price**) and the values that should run along the horizontal axis in **Categorical column** (for example **date**). When most values in that column parse as dates, the app uses a **datetime** x scale.
+
+Line plots let you **ease overcrowded x-axis ticks** with **Customize number of x-axis labels**: you pick a **target maximum** number of tick positions (default **10**; choices **5, 8, 10, 15, 20**). If there are **more** distinct x values than that number, the app **subsamples** them so you get roughly up to your choice (never more than **20** from the menu). If there are **fewer** distinct x values—e.g. only **10** unique dates when you chose **20**—you get **10** ticks: **you cannot have more ticks than distinct x values**; the control is only an upper cap, not a guarantee to draw that many.
+
+The example screenshot and steps below use **ex10-02.csv** with **date** on x and **price** on y.
 """,
     ),
 ]
@@ -300,6 +367,9 @@ def _maybe_show_example_image(slug: str, choice: str) -> None:
     filename = _EXAMPLE_IMAGES.get((slug, choice))
     if not filename:
         return
+    intro = _EXAMPLE_IMAGE_INTRO.get((slug, choice))
+    if intro:
+        st.markdown(intro)
     path = _USE_CASE_IMAGE_DIR / filename
     if path.is_file():
         st.image(str(path), use_container_width=True)
