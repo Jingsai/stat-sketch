@@ -15,6 +15,14 @@ _EXAMPLE_IMAGES: dict[tuple[str, str], str] = {
     ("viz", "Pie chart"): "viz_pie_num_cat.png",
     ("viz", "Linear regression"): "viz_linear_regression.png",
     ("viz", "Line plot"): "viz_line_plot.png",
+    ("infer", "One proportion"): "infer_one_prop.png",
+    ("infer", "Two proportions"): "infer_two_props.png",
+    ("infer", "Chisq goodness of fit"): "infer_chisq_gof.png",
+    ("infer", "Chisq independence"): "infer_chisq_ind.png",
+    ("infer", "One mean"): "infer_one_mean.png",
+    ("infer", "Two means"): "infer_two_means.png",
+    ("infer", "Paired means"): "infer_paired_means.png",
+    ("infer", "ANOVA"): "infer_anova.png",
 }
 
 # Shown above the matching screenshot (how the figure was produced)
@@ -58,6 +66,52 @@ _EXAMPLE_IMAGE_INTRO: dict[tuple[str, str], str] = {
 2. Open the Visualization tab. Under Variables, select Numeric vs categorical columns.
 3. Set Numeric column to price, Categorical column to date, and Plot type to Line plot.
 4. Use Customize number of x-axis labels to pick how many x-axis tick marks to aim for (default 10; choices 5, 8, 10, 15, or 20).""",
+    ("infer", "One proportion"): """The one-proportion result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick heart_transplant2.
+2. Open the Inference tab and select One proportion under Hypothesis Test.
+3. Set Categorical variable to survived and Success value to alive.
+4. Set Null proportion (H0) to 0.5, Alternative hypothesis to less, and Confidence level to 0.95 (adjust if you want a different test).""",
+    ("infer", "Two proportions"): """The two-proportion result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick Melanoma.
+2. Open the Inference tab and select Two proportions under Hypothesis Test.
+3. Set Response variable to status_fct, Explanatory variable (two groups) to sex_fct, and Success value (in response) to died from melanoma.
+4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the two group proportions are equal (difference 0).""",
+    ("infer", "Chisq goodness of fit"): """The chi-square goodness-of-fit result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick mtcars.
+2. Open the Inference tab and select Chisq for goodness of fit under Hypothesis Test.
+3. Set Categorical variable to cyl (number of cylinders).
+4. Under H0, edit the P(category under H0) column so the rows match sorted category order in the table: probability 0.38 for cyl 4, 0.38 for cyl 6, and 0.24 for cyl 8 (these sum to 1).""",
+    ("infer", "Chisq independence"): """The chi-square independence result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick birthwt.
+2. Open the Inference tab and select Chisq for indenpedence under Hypothesis Test (spelling matches the app).
+3. Set Response variable to low_fct and Explanatory variable to race_fct.""",
+    ("infer", "One mean"): """The one-sample mean result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick teacher2.
+2. Open the Inference tab and select One mean under Hypothesis Test.
+3. Set Response variable to total and μ₀ (null mean) to 63024.
+4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test).""",
+    ("infer", "Two means"): """The two-sample mean result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick birthwt.
+2. Open the Inference tab and select Two means under Hypothesis Test.
+3. Set Response variable to bwt and Explanatory variable (two groups) to low_fct.
+4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the two group means are equal (difference 0).""",
+    ("infer", "Paired means"): """The paired mean result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick textbooks.
+2. Open the Inference tab and select Paired means under Hypothesis Test.
+3. Set Column 1 to amaz_new (Amazon new price) and Column 2 to ucla_new (UCLA bookstore new price).
+4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the mean paired difference is zero.""",
+    ("infer", "ANOVA"): """The one-way ANOVA result below was produced by following steps:
+
+1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick uis.
+2. Open the Inference tab and select ANOVA under Hypothesis Test.
+3. Set Response variable to BECK and Explanatory variable (factor) to IV_fct.""",
 }
 
 _USE_CASE_TOPICS = (
@@ -174,6 +228,8 @@ _DATA_INFER_EXAMPLES: list[tuple[str, str]] = [
 
 Stay in **Data Visualization & Inference** with data loaded, then open the **Inference** tab. Pick a **Hypothesis Test** mode (buttons along the top), fill in variables and null settings, and run the workflow.
 
+The tests in the examples below follow **Chapters 15–22** of Sean Raleigh’s open textbook [*Introduction to Statistics: an integrated textbook and workbook using R*](https://vectorposse.github.io/intro_stats/) (datasets and research questions are drawn from that book’s narrative).
+
 For a short note on where the assistant lives in the app, pick the **Ask the AI** topic above.
 """,
     ),
@@ -182,9 +238,13 @@ For a short note on where the assistant lives in the app, pick the **Ask the AI*
         """
 **One proportion**
 
-Choose **One proportion**. Pick a **Categorical variable** and which category counts as **Success**. Set the null proportion, direction, and confidence level, then run the test.
+Choose **One proportion**. Pick a **Categorical variable** and which category counts as **Success**. Set **Null proportion (H0)**, **Alternative hypothesis**, and **Confidence level**; the app updates the results table, interval, and null plot as you change inputs.
 
 The app reports the test statistic, p-value, and confidence interval in context of your table.
+
+This use case parallels the **Research question** in [Chapter 15 — Inference for one proportion](https://vectorposse.github.io/intro_stats/15-inference_for_one_proportion-web.html#research-question) in that book.
+
+An example on the bundled **heart_transplant2** data (testing the proportion **alive** in **survived**) is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -192,9 +252,13 @@ The app reports the test statistic, p-value, and confidence interval in context 
         """
 **Two proportions**
 
-Choose **Two proportions**. Select two categorical columns (or one column split by another), define success, null, and direction, then calculate.
+Choose **Two proportions**. Pick a categorical **Response variable** (outcome), an **Explanatory variable** with exactly **two** groups, and which category counts as **Success (in response)**. Set **Alternative hypothesis** and **Confidence level**; the app compares the success proportion in each group (null is no difference).
 
 Useful for comparing proportions between two groups.
+
+This use case parallels the **Research question** in [Chapter 16 — Inference for two proportions](https://vectorposse.github.io/intro_stats/16-inference_for_two_proportions-web.html#research-question) in that book.
+
+An example on the bundled **Melanoma** data (response **status_fct**, groups **sex_fct**, success **died from melanoma**) is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -202,9 +266,13 @@ Useful for comparing proportions between two groups.
         """
 **Chi-square goodness of fit**
 
-Choose **Chisq for goodness of fit**. Pick a categorical column and specify the null distribution (e.g. equal frequencies or custom probabilities), then run the test.
+Choose **Chisq for goodness of fit** in the Inference tab. Pick a **Categorical variable**; the app shows observed counts per category and a table where you set **P(category under H₀)** for each category (non-negative, must sum to 1). Use **Reset to uniform 1/k** for equal null probabilities across *k* categories, or type your own null distribution.
 
-Checks whether observed category counts match a claimed distribution.
+The right panel shows the χ² statistic, p-value, observed vs expected counts, and a plot of the null distribution.
+
+This use case parallels the **Research question** in [Chapter 17 — Chi-square goodness-of-fit test](https://vectorposse.github.io/intro_stats/17-chi_square_goodness_of_fit-web.html#research-question) in that book.
+
+An example on the **mtcars** example dataset with **cyl** as the variable and null probabilities **4 → 0.38**, **6 → 0.38**, **8 → 0.24** is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -212,9 +280,11 @@ Checks whether observed category counts match a claimed distribution.
         """
 **Chi-square test of independence**
 
-Choose **Chisq for indenpedence** (as labeled in the app). Select two categorical columns to test whether they are associated in the population.
+Choose **Chisq for indenpedence** (as labeled in the app). Pick a categorical **Response variable** and a categorical **Explanatory variable**; the app tests whether the two factors are independent in the population and shows the χ² statistic, p-value, expected counts, and a visualization.
 
-Review expected counts and the chi-square statistic in the output.
+This use case parallels the **Research question** in [Chapter 18 — Chi-square test for independence](https://vectorposse.github.io/intro_stats/18-chi_square_test_for_independence-web.html#research-question) in that book.
+
+An example on the **birthwt** example dataset with **low_fct** as response and **race_fct** as explanatory is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -222,9 +292,13 @@ Review expected counts and the chi-square statistic in the output.
         """
 **One mean**
 
-Choose **One mean**. Select a numeric column and the null mean μ₀, direction, and confidence level for a one-sample *t*-test.
+Choose **One mean**. Select a numeric **Response variable**, the null mean **μ₀**, **Alternative hypothesis**, and **Confidence level** for a one-sample *t*-test. The app reports the statistic, p-value, and confidence interval for the mean.
 
 Checks whether the sample mean differs from the hypothesized mean.
+
+This use case parallels the **Research question** in [Chapter 19 — Inference for one mean](https://vectorposse.github.io/intro_stats/19-inference_for_one_mean-web.html#research-question) in that book.
+
+An example on the **teacher2** example dataset with response **total** and **μ₀ = 63024** is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -232,9 +306,13 @@ Checks whether the sample mean differs from the hypothesized mean.
         """
 **Two means (independent samples)**
 
-Choose **Two means**. Pick a numeric response and a two-level categorical grouping, set hypotheses and options, then run the independent two-sample *t*-test.
+Choose **Two means**. Pick a numeric **Response variable** and a categorical **Explanatory variable** with exactly **two** groups, then set **Alternative hypothesis** and **Confidence level** for the independent two-sample *t*-test. The null is that the two group means are equal.
 
 Compares average outcome between the two groups.
+
+This use case parallels the **Research question** in [Chapter 21 — Inference for two independent means](https://vectorposse.github.io/intro_stats/21-inference_for_two_independent_means-web.html#research-question) in that book.
+
+An example on the **birthwt** example dataset with response **bwt** and grouping **low_fct** is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -242,9 +320,13 @@ Compares average outcome between the two groups.
         """
 **Paired means**
 
-Choose **Paired means**. Select two numeric columns measured on the same rows (e.g. before and after), set direction and confidence level, then run the paired *t*-test.
+Choose **Paired means**. Select **Column 1** and **Column 2** as two numeric measurements on the **same rows** (each row is a pair), then set **Alternative hypothesis** and **Confidence level** for the paired *t*-test.
 
 Tests whether the mean difference between the two columns is zero.
+
+This use case parallels the **Research question** in [Chapter 20 — Inference for paired data](https://vectorposse.github.io/intro_stats/20-inference_for_paired_data-web.html#research-question) in that book.
+
+An example on the **textbooks** example dataset with **amaz_new** and **ucla_new** is shown in the screenshot and numbered steps below.
 """,
     ),
     (
@@ -252,9 +334,13 @@ Tests whether the mean difference between the two columns is zero.
         """
 **One-way ANOVA**
 
-Choose **ANOVA**. Pick a numeric response and a categorical factor with **three or more** levels, then run the analysis.
+Choose **ANOVA**. Pick a numeric **Response variable** and a categorical **Explanatory variable (factor)** with **three or more** levels, then run the analysis. The app reports the ANOVA table and a diagnostic plot.
 
 Tests whether at least one group mean differs from the others.
+
+This use case parallels the **Research question** in [Chapter 22 — ANOVA](https://vectorposse.github.io/intro_stats/22-anova-web.html#research-question) in that book.
+
+An example on the **uis** example dataset with response **BECK** and factor **IV_fct** is shown in the screenshot and numbered steps below.
 """,
     ),
 ]
