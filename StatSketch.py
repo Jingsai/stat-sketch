@@ -22,6 +22,7 @@ from helper import (
 from visualization import THEME_MAP, render_visualization_tab
 from distribution import DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR, render_distribution_tools
 from infer import render_inference_tab
+from use_cases import render_use_cases
 
 st.set_page_config(page_title="StatSketch", layout="wide")
 st.title("StatSketch: No-code Stats Lab")
@@ -29,7 +30,7 @@ st.title("StatSketch: No-code Stats Lab")
 st.sidebar.header("App mode")
 app_mode = st.sidebar.radio(
     "Choose mode",
-    ["Data Visualization & Inference", "Distribution Tools", "User Manual"],
+    ["Data Visualization & Inference", "Distribution Tools", "Use Cases"],
     horizontal=False,
     key="app_mode",
 )
@@ -45,9 +46,8 @@ if app_mode == "Distribution Tools":
 for _k in DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR:
     st.session_state.pop(_k, None)
 
-if app_mode == "User Manual":
-    st.subheader("User Manual")
-    st.write("Coming soon...")
+if app_mode == "Use Cases":
+    render_use_cases()
     st.stop()
 
 st.sidebar.header("Load data")
