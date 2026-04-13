@@ -372,7 +372,7 @@ def _maybe_show_example_image(slug: str, choice: str) -> None:
         st.markdown(intro)
     path = _USE_CASE_IMAGE_DIR / filename
     if path.is_file():
-        st.image(str(path), use_container_width=True)
+        st.image(str(path), width="stretch")
     else:
         st.caption(f"_(Screenshot not found: add `images/{filename}` next to `use_cases.py`.)_")
 

@@ -98,7 +98,7 @@ def render_plotnine(p, selected_theme=None, data: pd.DataFrame | None = None, x_
     width = 6
     height = width * (n_x_categories / 25) if (n_x_categories is not None and n_x_categories > 10) else width * 0.6
     fig.set_size_inches(width, height)
-    st.pyplot(fig, clear_figure=True, use_container_width=True)
+    st.pyplot(fig, clear_figure=True, width="stretch")
 
 
 def build_plot_context(plot_type: str, params: dict, data: pd.DataFrame) -> str:
@@ -202,7 +202,7 @@ def render_visualization_tab(df: pd.DataFrame, drop_na_rows: bool, selected_them
                 .assign(percent=lambda t: (t["count"] / t["count"].sum()) * 100)
             )
             st.caption("Frequency table")
-            st.dataframe(freq, use_container_width=True)
+            st.dataframe(freq, width="stretch")
 
         if chart_type == "Bar chart":
             if show_percent:
@@ -251,7 +251,7 @@ def render_visualization_tab(df: pd.DataFrame, drop_na_rows: bool, selected_them
             ax.axis("equal")
             left, center, right = st.columns([0.3, 2, 0.5])
             with center:
-                st.pyplot(fig, use_container_width=False)
+                st.pyplot(fig, width="content")
             context = build_plot_context("pie_chart", {"x": x}, d)
             render_plot_chat(plot_key, context)
 
@@ -514,7 +514,7 @@ def render_visualization_tab(df: pd.DataFrame, drop_na_rows: bool, selected_them
                 ax.axis("equal")
                 left, center, right = st.columns([0.3, 2, 0.5])
                 with center:
-                    st.pyplot(fig, use_container_width=False)
+                    st.pyplot(fig, width="content")
                 context = build_plot_context("pie_chart_preagg", {"x": x, "y": y}, d)
                 render_plot_chat(plot_key, context)
 

@@ -402,7 +402,7 @@ def _render_normal_tab() -> None:
             st.error(validation_error)
             return
         st.write(interp_text)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
 
@@ -502,7 +502,7 @@ def _render_t_tab() -> None:
             st.error(validation_error)
             return
         st.write(interp_text)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
 
@@ -602,7 +602,7 @@ def _render_chisq_tab() -> None:
             st.error(validation_error)
             return
         st.write(interp_text)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
 
@@ -709,7 +709,7 @@ def _render_f_tab() -> None:
             st.error(validation_error)
             return
         st.write(interp_text)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
 

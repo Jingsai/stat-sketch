@@ -459,7 +459,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=null_p)
                 .calculate(direction=direction, conf_level=conf_level)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             if test.ci is not None and len(test.ci) >= 2:
                 lo, hi = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
                 ci_pct = int(round(conf_level * 100))
@@ -469,7 +469,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                         f"Upper bound ({ci_pct}% CI)": [hi],
                     }
                 )
-                st.dataframe(ci_table, use_container_width=True, hide_index=True)
+                st.dataframe(ci_table, width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -592,7 +592,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=0)
                 .calculate(direction=direction, conf_level=conf_level)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             if test.ci is not None and len(test.ci) >= 2:
                 lo, hi = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
                 ci_pct = int(round(conf_level * 100))
@@ -602,7 +602,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                         f"Upper bound ({ci_pct}% CI)": [hi],
                     }
                 )
-                st.dataframe(ci_table, use_container_width=True, hide_index=True)
+                st.dataframe(ci_table, width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -703,7 +703,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=null_probs)
                 .calculate(conf_level=0.95)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             exp_ct = null_probs * float(obs_counts.sum())
             fit_table = pd.DataFrame(
                 {
@@ -713,7 +713,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 index=obs_counts.index.rename("category"),
             )
             st.caption("Counts used in the test (sorted categories).")
-            st.dataframe(fit_table, use_container_width=True)
+            st.dataframe(fit_table, width="stretch")
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -795,7 +795,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=0)
                 .calculate(conf_level=0.95)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -875,7 +875,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=mu0)
                 .calculate(direction=direction, conf_level=conf_level)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             if test.ci is not None and len(test.ci) >= 2:
                 lo, hi = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
                 ci_pct = int(round(conf_level * 100))
@@ -885,7 +885,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                         f"Upper bound ({ci_pct}% CI)": [hi],
                     }
                 )
-                st.dataframe(ci_table, use_container_width=True, hide_index=True)
+                st.dataframe(ci_table, width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -983,7 +983,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=0)
                 .calculate(direction=direction, conf_level=conf_level, paired=False)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             if test.ci is not None and len(test.ci) >= 2:
                 lo, hi = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
                 ci_pct = int(round(conf_level * 100))
@@ -993,7 +993,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                         f"Upper bound ({ci_pct}% CI)": [hi],
                     }
                 )
-                st.dataframe(ci_table, use_container_width=True, hide_index=True)
+                st.dataframe(ci_table, width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -1078,7 +1078,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=0)
                 .calculate(direction=direction, conf_level=conf_level, paired=True)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             if test.ci is not None and len(test.ci) >= 2:
                 lo, hi = _infer_display_ci(float(test.ci[0]), float(test.ci[1]))
                 ci_pct = int(round(conf_level * 100))
@@ -1088,7 +1088,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                         f"Upper bound ({ci_pct}% CI)": [hi],
                     }
                 )
-                st.dataframe(ci_table, use_container_width=True, hide_index=True)
+                st.dataframe(ci_table, width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)
@@ -1164,7 +1164,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 .hypothesize(p=0)
                 .calculate(conf_level=0.95)
             )
-            st.dataframe(_infer_display_df(test.results), use_container_width=True, hide_index=True)
+            st.dataframe(_infer_display_df(test.results), width="stretch", hide_index=True)
             fig = test.visualize()
             st.pyplot(fig)
             plt.close(fig)

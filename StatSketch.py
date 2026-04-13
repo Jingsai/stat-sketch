@@ -131,11 +131,11 @@ main_tabs = st.tabs(["Data Preview", "Visualization", "Inference"])
 with main_tabs[0]:
     st.subheader("Data Preview")
     preview_rows = st.slider("Preview rows", 5, 50, 10, key="preview_rows")
-    st.dataframe(df.head(preview_rows), use_container_width=True, hide_index=True)
+    st.dataframe(df.head(preview_rows), width="stretch", hide_index=True)
 
     st.subheader("Inferred Types")
     st.caption("Inferred types are heuristic; you can still pick any column you want.")
-    st.dataframe(info_df, use_container_width=True, hide_index=True)
+    st.dataframe(info_df, width="stretch", hide_index=True)
 
     st.subheader("Data Statistics")
     numeric_df = df.select_dtypes(include=["number"])
@@ -155,7 +155,7 @@ with main_tabs[0]:
             }
         )
         stats = stats[["Mean", "Standard Deviation", "Min", "Q1", "Median", "Q3", "Max"]]
-        st.dataframe(stats, use_container_width=True)
+        st.dataframe(stats, width="stretch")
 
 with main_tabs[1]:
     render_visualization_tab(df=df, drop_na_rows=drop_na_rows, selected_theme=selected_theme)
