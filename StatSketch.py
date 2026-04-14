@@ -126,36 +126,44 @@ for c in df.columns:
     col_info.append((c, ctype, int(s.isna().sum()), int(s.dropna().nunique())))
 info_df = pd.DataFrame(col_info, columns=["column", "inferred_type", "missing", "unique_non_na"])
 
-main_tabs = st.tabs(["Data Preview", "Visualization", "Inference"])
+main_tabs = st.tabs(["Data Overview", "Visualization", "Inference"])
 
 with main_tabs[0]:
-    st.subheader("Data Preview")
-    preview_rows = st.slider("Preview rows", 5, 50, 10, key="preview_rows")
-    st.dataframe(df.head(preview_rows), width="stretch", hide_index=True)
+    preview_mode = st.radio(
+        "Section",
+        ["Table Preview", "Inferred Types", "Data Statistics"],
+        horizontal=True,
+        key="preview_mode",
+    )
 
-    st.subheader("Inferred Types")
-    st.caption("Inferred types are heuristic; you can still pick any column you want.")
-    st.dataframe(info_df, width="stretch", hide_index=True)
-
-    st.subheader("Data Statistics")
-    numeric_df = df.select_dtypes(include=["number"])
-    if numeric_df.shape[1] == 0:
-        st.info("No numeric columns available for summary statistics.")
+    if preview_mode == "Table Preview":
+        # st.subheader("Table Preview")
+        preview_rows = st.slider("Preview rows", 5, 50, 10, key="preview_rows")
+        st.dataframe(df.head(preview_rows), width="stretch", hide_index=True)
+    elif preview_mode == "Inferred Types":
+        # st.subheader("Inferred Types")
+        st.caption("Inferred types are heuristic; you can still pick any column you want.")
+        st.dataframe(info_df, width="stretch", hide_index=True)
     else:
-        stats = numeric_df.describe(percentiles=[0.25, 0.5, 0.75]).T
-        stats = stats.rename(
-            columns={
-                "25%": "Q1",
-                "50%": "Median",
-                "75%": "Q3",
-                "std": "Standard Deviation",
-                "min": "Min",
-                "max": "Max",
-                "mean": "Mean",
-            }
-        )
-        stats = stats[["Mean", "Standard Deviation", "Min", "Q1", "Median", "Q3", "Max"]]
-        st.dataframe(stats, width="stretch")
+        # st.subheader("Data Statistics")
+        numeric_df = df.select_dtypes(include=["number"])
+        if numeric_df.shape[1] == 0:
+            st.info("No numeric columns available for summary statistics.")
+        else:
+            stats = numeric_df.describe(percentiles=[0.25, 0.5, 0.75]).T
+            stats = stats.rename(
+                columns={
+                    "25%": "Q1",
+                    "50%": "Median",
+                    "75%": "Q3",
+                    "std": "Standard Deviation",
+                    "min": "Min",
+                    "max": "Max",
+                    "mean": "Mean",
+                }
+            )
+            stats = stats[["Mean", "Standard Deviation", "Min", "Q1", "Median", "Q3", "Max"]]
+            st.dataframe(stats, width="stretch")
 
 with main_tabs[1]:
     render_visualization_tab(df=df, drop_na_rows=drop_na_rows, selected_theme=selected_theme)

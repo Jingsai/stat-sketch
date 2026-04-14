@@ -374,7 +374,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
-                "No categorical columns found for a one-proportion test. Use columns inferred as categorical in Data Preview, or upload different data."
+                "No categorical columns found for a one-proportion test. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -491,7 +491,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
-                "No categorical columns found. Use columns inferred as categorical in Data Preview, or upload different data."
+                "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -624,7 +624,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
-                "No categorical columns found. Use columns inferred as categorical in Data Preview, or upload different data."
+                "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -735,7 +735,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         cat_cols = _categorical_columns_for_inference(df)
         if not cat_cols:
             st.warning(
-                "No categorical columns found. Use columns inferred as categorical in Data Preview, or upload different data."
+                "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -813,7 +813,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
-                "No numeric quantitative columns found. Use columns inferred as numeric (not categorical) in Data Preview, or upload different data."
+                "No numeric quantitative columns found. Use columns inferred as numeric (not categorical) in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -906,7 +906,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
-                "No numeric quantitative columns found. Use columns inferred as numeric in Data Preview, or upload different data."
+                "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -1015,7 +1015,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
-                "No numeric quantitative columns found. Use columns inferred as numeric in Data Preview, or upload different data."
+                "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 
@@ -1110,7 +1110,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         num_cols = _numeric_columns_for_inference(df)
         if not num_cols:
             st.warning(
-                "No numeric quantitative columns found. Use columns inferred as numeric in Data Preview, or upload different data."
+                "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
             return
 

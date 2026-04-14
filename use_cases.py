@@ -117,7 +117,7 @@ _EXAMPLE_IMAGE_INTRO: dict[tuple[str, str], str] = {
 _USE_CASE_TOPICS = (
     "Data visualization",
     "Data inference",
-    "Data preview",
+    "Data overview",
     "Distribution tools",
     "Ask the AI",
 )
@@ -125,7 +125,7 @@ _USE_CASE_TOPICS = (
 _TOPIC_SLUG = {
     "Data visualization": "viz",
     "Data inference": "infer",
-    "Data preview": "preview",
+    "Data overview": "preview",
     "Distribution tools": "dist",
 }
 
@@ -228,7 +228,7 @@ _DATA_INFER_EXAMPLES: list[tuple[str, str]] = [
 
 Stay in **Data Visualization & Inference** with data loaded, then open the **Inference** tab. Pick a **Hypothesis Test** mode (buttons along the top), fill in variables and null settings, and run the workflow.
 
-The tests in the examples below follow **Chapters 15–22** of Sean Raleigh’s open textbook [*Introduction to Statistics: an integrated textbook and workbook using R*](https://vectorposse.github.io/intro_stats/) (datasets and research questions are drawn from that book’s narrative).
+The tests in the examples below follow **Chapters 15–22** of open textbook [*Introduction to Statistics: an integrated textbook and workbook using R*](https://vectorposse.github.io/intro_stats/) (datasets and research questions are drawn from that book’s narrative).
 
 For a short note on where the assistant lives in the app, pick the **Ask the AI** topic above.
 """,
@@ -351,7 +351,7 @@ _DATA_PREVIEW_EXAMPLES: list[tuple[str, str]] = [
         """
 **Getting started**
 
-In **Data Visualization & Inference**, load your file or an example dataset, then open the **Data Preview** tab. Use the examples below to focus on one part of that tab.
+In **Data Visualization & Inference**, load your file or an example dataset, then open the **Data Overview** tab, then choose **Table Preview** in the section selector. Use the examples below to focus on one part of that tab.
 """,
     ),
     (
@@ -377,7 +377,7 @@ If a column is misclassified, you can still choose it manually in Visualization 
         """
 **Data statistics**
 
-The **Data Statistics** section summarizes numeric columns (mean, spread, quartiles, min/max). If there are no numeric columns, the app says so.
+The **Data Statistics** section summarizes numeric columns (mean, spread, quartiles, min/max).
 
 Use this to spot skewed variables, odd ranges, or zeros before modeling.
 """,
@@ -439,12 +439,19 @@ _ASK_AI_BODY = """
 **Ask the AI**
 
 This app supports an **AI dialog** at the bottom of the **Visualization** tab and the **Inference** tab (expand the section when you are ready to chat). The panel titles include **example questions** you can ask—such as how to read a plot or how to interpret a test result—and you can type your own questions in the same way.
+
+Common questions you might try (copy the idea, not necessarily the exact wording):
+
+- **Histogram:** “Is this histogram skewed left or right, and what does that mean for the data?”
+- **ANOVA:** “What are df1 and df2 in this ANOVA table, and how do I read them?”
+- **Inference:** “Explain the p-value I’m seeing in plain language.”
+- **Plots:** “What does this boxplot tell me about spread and outliers between groups?”
 """
 
 _TOPIC_EXAMPLES: dict[str, list[tuple[str, str]]] = {
     "Data visualization": _DATA_VIZ_EXAMPLES,
     "Data inference": _DATA_INFER_EXAMPLES,
-    "Data preview": _DATA_PREVIEW_EXAMPLES,
+    "Data overview": _DATA_PREVIEW_EXAMPLES,
     "Distribution tools": _DIST_EXAMPLES,
 }
 
