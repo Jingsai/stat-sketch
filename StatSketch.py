@@ -1,5 +1,5 @@
 """
-StatSketch: No-code Data Visualizer
+StatSketch: No-code statistics lab
 
 Run: streamlit run StatSketch.py
 """
