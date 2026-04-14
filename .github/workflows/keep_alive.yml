@@ -1,12 +1,19 @@
 name: Keep Streamlit Awake
 on:
   schedule:
-    - cron: '0 */6 * * *' # This runs exactly every 6 hours
-  workflow_dispatch:      # Allows you to run it manually
+    - cron: "*/30 * * * *" # Run every 30 minutes
+  workflow_dispatch: # Allows manual run
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Streamlit App
-        run: curl -I https://stat-sketch.streamlit.app/
+      - name: Ping Streamlit app root
+        run: |
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 30 \
+            "https://stat-sketch.streamlit.app/" >/dev/null
+
+      - name: Ping Streamlit health endpoint
+        run: |
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 30 \
+            "https://stat-sketch.streamlit.app/_stcore/health" >/dev/null
