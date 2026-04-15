@@ -29,7 +29,7 @@ StatSketch is a **browser-based, no-code statistics lab** geared to **introducto
 ## Workflow (typical session)
 
 1. In the sidebar, choose **Data Visualization & Inference** (or **Distribution Tools** for calculator-style distributions).
-2. **Load data**: upload a delimited file (**Upload file**), paste a direct **File URL** to a CSV-like file, or pick an **Example dataset** (bundled CSVs plus built-in Palmer penguins). Choose a column **separator** if needed.
+2. **Load data**: upload a delimited file (**Upload file**), paste a direct **File URL** to a CSV-like file, or pick an **Example dataset** (bundled CSVs, including Palmer penguins as `penguins.csv`). Choose a column **separator** if needed.
 3. Open **Data Overview** to preview rows, check **Inferred Types**, or scan **Data Statistics** for numeric summaries.
 4. Open **Visualization** or **Inference**, pick the variable layout or test type, assign **one or two (or more) columns** as prompted, adjust options, and read the plot or numeric output.
 5. Optionally expand **Ask the AI** at the bottom of Visualization or Inference and ask a question in plain language.

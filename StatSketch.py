@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from plotnine.data import penguins
 
 from helper import (
     EXAMPLE_DATASET_PALMER_PENGUINS,
@@ -18,6 +17,7 @@ from helper import (
     load_csv_from_upload,
     load_csv_from_url,
     load_example_csv,
+    warn_if_likely_wrong_separator,
 )
 from visualization import THEME_MAP, render_visualization_tab
 from distribution import DISTRIBUTION_TOOLS_WIDGET_KEYS_TO_CLEAR, render_distribution_tools
@@ -58,6 +58,7 @@ source = st.sidebar.radio(
 )
 
 df = None
+example_choice = None
 if source == "Upload file":
     sep = st.sidebar.selectbox("Separator", [",", "\t", ";", "|"], index=0, key="csv_sep")
     uploaded = st.sidebar.file_uploader("Upload a data file (CSV, TXT, etc.)")
@@ -78,9 +79,12 @@ elif source == "File URL":
             st.stop()
 else:
     example_files = list_example_csv_filenames()
-    example_display_names = [Path(f).stem for f in example_files]
-    example_options = [EXAMPLE_DATASET_PALMER_PENGUINS] + example_display_names
-    choice = st.sidebar.selectbox(
+    stems = sorted({Path(f).stem for f in example_files})
+    if "penguins" in stems:
+        example_options = [EXAMPLE_DATASET_PALMER_PENGUINS] + [s for s in stems if s != "penguins"]
+    else:
+        example_options = stems
+    example_choice = st.sidebar.selectbox(
         "Example dataset",
         example_options,
         index=0,
@@ -89,10 +93,8 @@ else:
     )
     sep = st.sidebar.selectbox("Separator", [",", "\t", ";", "|"], index=0, key="csv_sep")
     try:
-        if choice == EXAMPLE_DATASET_PALMER_PENGUINS:
-            df = penguins.copy()
-        else:
-            df = load_example_csv(f"{choice}.csv", sep=sep)
+        csv_name = "penguins.csv" if example_choice == EXAMPLE_DATASET_PALMER_PENGUINS else f"{example_choice}.csv"
+        df = load_example_csv(csv_name, sep=sep)
     except Exception as e:
         st.sidebar.error(f"Could not load example dataset: {e}")
         st.stop()
@@ -100,6 +102,8 @@ else:
 if df is None:
     st.info("Upload a data file, provide a URL, or use the example dataset to begin.")
     st.stop()
+
+warn_if_likely_wrong_separator(df, sep)
 
 st.sidebar.header("Basic options")
 drop_na_rows = st.sidebar.checkbox("Drop rows with missing values in selected columns (recommended)", value=True)

@@ -1,4 +1,5 @@
 import io
+import re
 import urllib.request
 from pathlib import Path
 
@@ -8,7 +9,51 @@ import streamlit as st
 
 ENCODINGS = ["utf-8", "cp1252", "latin1"]
 
-# Built-in example id (not a file on disk); shown first in the example-dataset dropdown.
+# User-facing labels for sidebar separator values
+SEP_LABELS = {",": "comma (,)", "\t": "Tab", ";": "semicolon (;)", "|": "pipe (|)"}
+
+
+def warn_if_likely_wrong_separator(df: pd.DataFrame, selected_sep: str) -> None:
+    """
+    If the file was parsed with the wrong delimiter, pandas often yields a single wide
+    text column whose values contain many characters of the true delimiter (e.g. ';').
+    Show a gentle warning suggesting another separator from the sidebar.
+    """
+    if df is None or df.empty or len(df.columns) != 1:
+        return
+
+    col = df.columns[0]
+    as_str = df[col].dropna().astype(str)
+    if as_str.empty:
+        return
+
+    selected_label = SEP_LABELS.get(selected_sep, repr(selected_sep))
+    best_label = None
+    best_score = 0.0
+
+    for delim, label in SEP_LABELS.items():
+        if delim == selected_sep:
+            continue
+        pat = re.escape(delim)
+        counts = as_str.str.count(pat)
+        frac_any = float((counts > 0).mean())
+        mean_ct = float(counts.mean())
+        # Strong signal: most rows contain this delimiter more than once on average
+        if frac_any < 0.45 or mean_ct < 1.25:
+            continue
+        score = frac_any * mean_ct
+        if score > best_score:
+            best_score = score
+            best_label = label
+
+    if best_label:
+        st.warning(
+            "The file loaded as one column, but many cell values contain characters "
+            f"typical of another field separator. You currently have {selected_label} "
+            f"selected. Try {best_label} under Separator in the sidebar and reload."
+        )
+
+# Display label for datasets/penguins.csv (shown first when that file exists).
 EXAMPLE_DATASET_PALMER_PENGUINS = "Palmer penguins"
 
 
