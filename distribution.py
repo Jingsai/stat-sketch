@@ -334,7 +334,14 @@ def _render_normal_tab() -> None:
             st.session_state["normal_mu_saved"] = mu
         with sigma_col:
             _sync_widget_from_saved("normal_sigma_input", "normal_sigma_saved")
-            sigma = st.number_input("Std dev (σ)", min_value=0.0, step=0.1, key="normal_sigma_input")
+            # format + step keep the shown σ aligned with the value in session_state on all hosts.
+            sigma = st.number_input(
+                "Std dev (σ)",
+                min_value=0.0,
+                step=0.01,
+                format="%.3f",
+                key="normal_sigma_input",
+            )
             st.session_state["normal_sigma_saved"] = sigma
 
         if calc == "Normal Distribution (pnorm)":
