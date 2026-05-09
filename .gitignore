@@ -6,6 +6,7 @@ paper.md
 .cursor 
 test/
 backup/
+bug/
 .ipynb_checkpoints/
 
 # --- Streamlit Secrets ---
