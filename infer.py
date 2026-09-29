@@ -130,12 +130,7 @@ class Infer:
 
     def _engine_one_mean(self):
         res = pg.ttest(self.data[self.response], y=self.null_val, confidence=self.conf_level, alternative=self.direction)
-        ci_col = _pingouin_ci_column_name(self.conf_level)
-        # pingouin version 0.5.5 uses CI95% as column name, but newer version uses CI95 as column name.
-        # so we specify 0.5.5 in the requirements.txt file to ensure the correct column name is used.
-        self.ci = tuple(np.asarray(res[ci_col].values[0]).ravel()[:2])
-        self.stat_val = res['T'].iloc[0]
-        self.results = res[['T', 'dof', 'p-val']].rename(columns={'p-val': 'p_val'})
+        self.ci, self.results, self.stat_val = _ttest_ci_and_results(res, self.conf_level)
         self._viz_dist = 't'
         return self
 
@@ -147,10 +142,7 @@ class Infer:
         g1 = self.data[self.data[self.explanatory] == names[0]][self.response]
         g2 = self.data[self.data[self.explanatory] == names[1]][self.response]
         res = pg.ttest(g1, g2, confidence=self.conf_level, alternative=self.direction)
-        ci_col = _pingouin_ci_column_name(self.conf_level)
-        self.ci = tuple(np.asarray(res[ci_col].values[0]).ravel()[:2])
-        self.stat_val = res['T'].iloc[0]
-        self.results = res[['T', 'dof', 'p-val']].rename(columns={'p-val': 'p_val'})
+        self.ci, self.results, self.stat_val = _ttest_ci_and_results(res, self.conf_level)
         self._viz_dist = 't'
         return self
 
@@ -162,18 +154,16 @@ class Infer:
             confidence=self.conf_level,
             alternative=self.direction,
         )
-        ci_col = _pingouin_ci_column_name(self.conf_level)
-        self.ci = tuple(np.asarray(res[ci_col].values[0]).ravel()[:2])
-        self.stat_val = res['T'].iloc[0]
-        self.results = res[['T', 'dof', 'p-val']].rename(columns={'p-val': 'p_val'})
+        self.ci, self.results, self.stat_val = _ttest_ci_and_results(res, self.conf_level)
         self._viz_dist = 't'
         return self
 
     def _engine_anova(self):
         self.results = pg.anova(dv=self.response, between=self.explanatory, data=self.data)
         self.stat_val, self._viz_dist = self.results['F'].iloc[0], 'f'
-        self.results = self.results[["ddof1", "ddof2", "F", "p-unc"]].rename(
-            columns={"ddof1": "dof1", "ddof2": "dof2", "p-unc": "p_val"}
+        p_col = _first_present_column(self.results, ["p-unc", "p_unc"])
+        self.results = self.results[["ddof1", "ddof2", "F", p_col]].rename(
+            columns={"ddof1": "dof1", "ddof2": "dof2", p_col: "p_val"}
         )
         return self
 
@@ -209,10 +199,22 @@ class Infer:
         return fig
 
 
-def _pingouin_ci_column_name(conf_level: float) -> str:
-    """Column name for pingouin t-test CI (e.g. CI95% for conf_level=0.95)."""
+def _first_present_column(frame: pd.DataFrame, names: list[str]) -> str:
+    """First column name that exists. Pingouin 0.5.5 and 0.6 use different labels."""
+    for name in names:
+        if name in frame.columns:
+            return name
+    raise KeyError(f"None of {names} found in {list(frame.columns)}")
+
+
+def _ttest_ci_and_results(res: pd.DataFrame, conf_level: float) -> tuple[tuple[float, float], pd.DataFrame, float]:
     pct = int(round(conf_level * 100))
-    return f"CI{pct}%"
+    ci_col = _first_present_column(res, [f"CI{pct}%", f"CI{pct}"])
+    p_col = _first_present_column(res, ["p-val", "p_val"])
+    ci = tuple(np.asarray(res[ci_col].values[0]).ravel()[:2])
+    stat = float(res["T"].iloc[0])
+    results = res[["T", "dof", p_col]].rename(columns={p_col: "p_val"})
+    return ci, results, stat
 
 
 def _numeric_columns_for_inference(df: pd.DataFrame) -> list[str]:
@@ -342,37 +344,78 @@ def _anova_grouping_columns(df: pd.DataFrame, exclude: str) -> list[str]:
     return sorted(out, key=str.lower)
 
 
-def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
-    mode_help = (
-        "- **One proportion**: Test the proportion of a single categorical column against a null hypothesis.\n"
-        "- **Two proportions**: Test the proportion of two categorical columns against a null hypothesis.\n"
-        "- **Chisq for indenpedence**: Test the independence of two categorical columns.\n"
-        "- **Chisq for goodness of fit**: Test the goodness of fit of a categorical column against a null hypothesis.\n"
-        "- **One mean**: One-sample t-test for a numeric column vs a null mean μ₀.\n"
-        "- **Two means**: Independent two-sample t-test (numeric response, two-level factor).\n"
-        "- **Paired means**: Paired t-test on two numeric columns (same rows).\n"
-        "- **ANOVA**: One-way ANOVA (numeric response, factor with three or more levels).\n"
-    )
-    mode = st.radio(
-        "Hypothesis Test",
-        [
-            "One proportion",
-            "Two proportions",
-            "Chisq for goodness of fit",
-            "Chisq for indenpedence",
-            "One mean",
-            "Two means",
-            "Paired means",
-            "ANOVA",
-        ],
-        horizontal=True,
-        help=mode_help,
-    )
+def _pick_or_locked(
+    label: str,
+    options: list[str],
+    key: str,
+    locked_value: str | None,
+    *,
+    help: str | None = None,
+) -> str:
+    """Column selectbox, or the column already chosen in variable-first mode."""
+    if locked_value is None:
+        return st.selectbox(label, options, key=key, help=help)
+    st.markdown(f"**{label}:** `{locked_value}`")
+    return locked_value
+
+
+def _coerce_select_state(key: str, options: list) -> None:
+    """Drop a stale selectbox value that is not in the current options."""
+    if key in st.session_state and st.session_state[key] not in options:
+        st.session_state.pop(key, None)
+
+
+def _render_inference_model_first(
+    df: pd.DataFrame,
+    drop_na_rows: bool,
+    *,
+    preset_mode: str | None = None,
+    locked: dict | None = None,
+) -> None:
+    """Test-first menu. Variable-first mode calls this with the test and columns already chosen."""
+    if locked is None:
+        locked = {}
+
+    for col in (locked.get("response"), locked.get("explanatory")):
+        if col is not None and col not in df.columns:
+            _infer_ai_clear_context()
+            st.error(f"Column `{col}` is not in the data.")
+            return
+
+    if preset_mode is None:
+        mode_help = (
+            "- **One proportion**: Test the proportion of a single categorical column against a null hypothesis.\n"
+            "- **Two proportions**: Test the proportion of two categorical columns against a null hypothesis.\n"
+            "- **Chisq for indenpedence**: Test the independence of two categorical columns.\n"
+            "- **Chisq for goodness of fit**: Test the goodness of fit of a categorical column against a null hypothesis.\n"
+            "- **One mean**: One-sample t-test for a numeric column vs a null mean μ₀.\n"
+            "- **Two means**: Independent two-sample t-test (numeric response, two-level factor).\n"
+            "- **Paired means**: Paired t-test on two numeric columns (same rows).\n"
+            "- **ANOVA**: One-way ANOVA (numeric response, factor with three or more levels).\n"
+        )
+        mode = st.radio(
+            "Hypothesis Test",
+            [
+                "One proportion",
+                "Two proportions",
+                "Chisq for goodness of fit",
+                "Chisq for indenpedence",
+                "One mean",
+                "Two means",
+                "Paired means",
+                "ANOVA",
+            ],
+            horizontal=True,
+            help=mode_help,
+            key="infer_hypothesis_test",
+        )
+    else:
+        mode = preset_mode
 
     if mode == "One proportion":
         _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
-        if not cat_cols:
+        if locked.get("response") is None and not cat_cols:
             st.warning(
                 "No categorical columns found for a one-proportion test. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -384,10 +427,11 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             # 3×2 grid: row1 categorical | success; row2 H₀ | alternative; row3 conf | (empty)
             g11, g12 = st.columns(2)
             with g11:
-                col = st.selectbox(
+                col = _pick_or_locked(
                     "Categorical variable",
                     cat_cols,
-                    key="infer_one_prop_col",
+                    "infer_one_prop_col",
+                    locked.get("response"),
                 )
             s = df[col]
             if not is_categorical(s):
@@ -408,6 +452,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             except TypeError:
                 pass
             with g12:
+                _coerce_select_state("infer_one_prop_success", uniques)
                 success = st.selectbox(
                     "Success value",
                     uniques,
@@ -489,7 +534,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "Two proportions":
         _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
-        if not cat_cols:
+        if locked.get("response") is None and not cat_cols:
             st.warning(
                 "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -501,23 +546,25 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             # 3×2 grid: row1 response | explanatory; row2 success | alternative; row3 conf | (empty)
             g11, g12 = st.columns(2)
             with g11:
-                response = st.selectbox(
+                response = _pick_or_locked(
                     "Response variable",
                     cat_cols,
-                    key="infer_two_prop_response",
+                    "infer_two_prop_response",
+                    locked.get("response"),
                     help="Outcome column; success is defined within this variable.",
                 )
             expl_candidates = _two_level_categorical_columns(df, exclude=response)
-            if not expl_candidates:
+            if locked.get("explanatory") is None and not expl_candidates:
                 st.error(
                     "No second categorical column with exactly two levels (for grouping). Add a binary grouping variable or pick another response."
                 )
                 return
             with g12:
-                explanatory = st.selectbox(
+                explanatory = _pick_or_locked(
                     "Explanatory variable (two groups)",
                     expl_candidates,
-                    key="infer_two_prop_explanatory",
+                    "infer_two_prop_explanatory",
+                    locked.get("explanatory"),
                     help="Must have exactly two categories (e.g. treatment vs control).",
                 )
 
@@ -546,6 +593,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 pass
             g21, g22 = st.columns(2)
             with g21:
+                _coerce_select_state("infer_two_prop_success", uniques)
                 success = st.selectbox(
                     "Success value (in response)",
                     uniques,
@@ -622,7 +670,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "Chisq for goodness of fit":
         _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
-        if not cat_cols:
+        if locked.get("response") is None and not cat_cols:
             st.warning(
                 "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -631,10 +679,11 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         left, right = st.columns(2, gap="large")
 
         with left:
-            col = st.selectbox(
+            col = _pick_or_locked(
                 "Categorical variable",
                 cat_cols,
-                key="infer_gof_col",
+                "infer_gof_col",
+                locked.get("response"),
                 help="Counts of these categories are compared to the null probabilities you specify.",
             )
             work = df[[col]].copy()
@@ -642,6 +691,9 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 work = work.dropna(subset=[col])
             if work.empty:
                 st.error("No rows left after dropping missing values in the selected column.")
+                return
+            if not is_categorical(work[col]):
+                st.error("Selected column is not categorical. Pick a different variable.")
                 return
 
             obs_counts = work[col].value_counts().sort_index()
@@ -733,7 +785,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "Chisq for indenpedence":
         _infer_ai_clear_context()
         cat_cols = _categorical_columns_for_inference(df)
-        if not cat_cols:
+        if locked.get("response") is None and not cat_cols:
             st.warning(
                 "No categorical columns found. Use columns inferred as categorical in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -744,23 +796,25 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         with left:
             row1a, row1b = st.columns(2)
             with row1a:
-                response = st.selectbox(
+                response = _pick_or_locked(
                     "Response variable",
                     cat_cols,
-                    key="infer_chisq_indep_response",
+                    "infer_chisq_indep_response",
+                    locked.get("response"),
                     help="One categorical variable in the contingency table.",
                 )
             expl_candidates = _categorical_columns_excluding(df, exclude=response)
-            if not expl_candidates:
+            if locked.get("explanatory") is None and not expl_candidates:
                 st.error(
                     "Need at least two categorical columns. Pick a different dataset or mark another column as categorical."
                 )
                 return
             with row1b:
-                explanatory = st.selectbox(
+                explanatory = _pick_or_locked(
                     "Explanatory variable",
                     expl_candidates,
-                    key="infer_chisq_indep_explanatory",
+                    "infer_chisq_indep_explanatory",
+                    locked.get("explanatory"),
                     help="Second categorical variable; independence is tested between these two.",
                 )
 
@@ -811,7 +865,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "One mean":
         _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
-        if not num_cols:
+        if locked.get("response") is None and not num_cols:
             st.warning(
                 "No numeric quantitative columns found. Use columns inferred as numeric (not categorical) in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -823,10 +877,11 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             # 2×2 grid: row1 response | μ₀; row2 direction | confidence level
             g11, g12 = st.columns(2)
             with g11:
-                response = st.selectbox(
+                response = _pick_or_locked(
                     "Response variable",
                     num_cols,
-                    key="infer_one_mean_response",
+                    "infer_one_mean_response",
+                    locked.get("response"),
                     help="Numeric outcome; one-sample t-test vs μ₀.",
                 )
             with g12:
@@ -846,6 +901,9 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 return
             if work[response].shape[0] < 2:
                 st.error("Need at least two non-missing values for a one-sample t-test.")
+                return
+            if not is_numeric(work[response]) or is_categorical(work[response]):
+                st.error("Response must be numeric (quantitative).")
                 return
 
             g21, g22 = st.columns(2)
@@ -904,7 +962,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "Two means":
         _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
-        if not num_cols:
+        if locked.get("response") is None and not num_cols:
             st.warning(
                 "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -916,23 +974,25 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             # 2×2 grid: row1 response | explanatory; row2 direction | confidence level
             g11, g12 = st.columns(2)
             with g11:
-                response = st.selectbox(
+                response = _pick_or_locked(
                     "Response variable",
                     num_cols,
-                    key="infer_two_mean_response",
+                    "infer_two_mean_response",
+                    locked.get("response"),
                     help="Numeric outcome compared across two independent groups.",
                 )
             expl_candidates = _two_level_categorical_columns(df, exclude=response)
-            if not expl_candidates:
+            if locked.get("explanatory") is None and not expl_candidates:
                 st.error(
                     "No categorical column with exactly two levels (grouping variable). Add a binary factor or pick another response."
                 )
                 return
             with g12:
-                explanatory = st.selectbox(
+                explanatory = _pick_or_locked(
                     "Explanatory variable (two groups)",
                     expl_candidates,
-                    key="infer_two_mean_explanatory",
+                    "infer_two_mean_explanatory",
+                    locked.get("explanatory"),
                     help="Exactly two categories (e.g. treatment vs control).",
                 )
 
@@ -1013,7 +1073,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "Paired means":
         _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
-        if not num_cols:
+        if locked.get("response") is None and not num_cols:
             st.warning(
                 "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -1025,21 +1085,23 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
             # 2×2 grid: row1 column 1 | column 2; row2 direction | confidence level
             g11, g12 = st.columns(2)
             with g11:
-                col1 = st.selectbox(
+                col1 = _pick_or_locked(
                     "Column 1",
                     num_cols,
-                    key="infer_paired_col1",
+                    "infer_paired_col1",
+                    locked.get("response"),
                     help="First numeric measurement (paired with column 2).",
                 )
             col2_candidates = _numeric_columns_excluding(df, exclude=col1)
-            if not col2_candidates:
+            if locked.get("explanatory") is None and not col2_candidates:
                 st.error("Pick a second numeric column different from column 1.")
                 return
             with g12:
-                col2 = st.selectbox(
+                col2 = _pick_or_locked(
                     "Column 2",
                     col2_candidates,
-                    key="infer_paired_col2",
+                    "infer_paired_col2",
+                    locked.get("explanatory"),
                     help="Second numeric measurement on the same rows as column 1.",
                 )
 
@@ -1049,6 +1111,14 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
                 work = work.dropna(subset=cols_needed)
             if work.shape[0] < 2:
                 st.error("Need at least two complete pairs (non-missing in both columns) for a paired t-test.")
+                return
+            if (
+                not is_numeric(work[col1])
+                or is_categorical(work[col1])
+                or not is_numeric(work[col2])
+                or is_categorical(work[col2])
+            ):
+                st.error("Both columns must be numeric (quantitative).")
                 return
 
             g21, g22 = st.columns(2)
@@ -1108,7 +1178,7 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
     elif mode == "ANOVA":
         _infer_ai_clear_context()
         num_cols = _numeric_columns_for_inference(df)
-        if not num_cols:
+        if locked.get("response") is None and not num_cols:
             st.warning(
                 "No numeric quantitative columns found. Use columns inferred as numeric in **Data Overview → Inferred Types**, or upload different data."
             )
@@ -1119,23 +1189,25 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         with left:
             g11, g12 = st.columns(2)
             with g11:
-                response = st.selectbox(
+                response = _pick_or_locked(
                     "Response variable",
                     num_cols,
-                    key="infer_anova_response",
+                    "infer_anova_response",
+                    locked.get("response"),
                     help="Numeric outcome (dependent variable).",
                 )
             expl_candidates = _anova_grouping_columns(df, exclude=response)
-            if not expl_candidates:
+            if locked.get("explanatory") is None and not expl_candidates:
                 st.error(
                     "No categorical column with at least three levels for grouping. One-way ANOVA needs a factor with three or more categories."
                 )
                 return
             with g12:
-                explanatory = st.selectbox(
+                explanatory = _pick_or_locked(
                     "Explanatory variable (factor)",
                     expl_candidates,
-                    key="infer_anova_explanatory",
+                    "infer_anova_explanatory",
+                    locked.get("explanatory"),
                     help="Categorical factor with three or more groups.",
                 )
 
@@ -1183,8 +1255,178 @@ def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
         _infer_ai_clear_context()
         st.info("Choose a hypothesis test from the options above.")
 
+
+_VF_LAYOUTS = [
+    "One categorical column",
+    "Two categorical columns",
+    "One numeric column",
+    "Numeric vs categorical columns",
+    "Two numeric columns",
+]
+
+_VF_LAYOUT_HELP = (
+    "- **One categorical column**: one categorical variable "
+    "(for example a group, region, or yes/no outcome).\n"
+    "- **Two categorical columns**: two categorical variables "
+    "(for example an outcome and a grouping factor).\n"
+    "- **One numeric column**: one numeric variable "
+    "(for example age or income).\n"
+    "- **Numeric vs categorical columns**: a numeric variable compared across groups "
+    "defined by a categorical variable.\n"
+    "- **Two numeric columns**: two numeric variables on the same rows "
+    "(for example a pair of measurements)."
+)
+
+_VF_MODELS = {
+    "One categorical column": ["One proportion", "Chisq for goodness of fit"],
+    "Two categorical columns": ["Two proportions", "Chisq for indenpedence"],
+    "One numeric column": ["One mean"],
+    "Numeric vs categorical columns": ["Two means", "ANOVA"],
+    "Two numeric columns": ["Paired means"],
+}
+
+
+def _render_inference_variable_first(df: pd.DataFrame, drop_na_rows: bool) -> None:
+    """Same variable questions as the Visualization tab, then a model for that layout."""
+    _infer_ai_clear_context()
+    layout = st.radio(
+        "Variables",
+        _VF_LAYOUTS,
+        horizontal=True,
+        help=_VF_LAYOUT_HELP,
+        key="infer_vf_layout",
+    )
+    columns = df.columns.tolist()
+    if not columns:
+        st.warning("The dataset has no columns.")
+        return
+
+    model_options = _VF_MODELS[layout]
+    cat_idx = [i for i, c in enumerate(columns) if is_categorical(df[c])]
+    raw_num = [
+        i
+        for i, c in enumerate(columns)
+        if is_numeric(df[c]) and not is_categorical(df[c])
+    ]
+    # Skip identifier-like columns (one distinct value per row) when a measurement exists.
+    measured = [
+        i
+        for i in raw_num
+        if df[columns[i]].dropna().nunique() < df[columns[i]].dropna().shape[0]
+    ]
+    num_idx = measured or raw_num
+
+    def _nth(idxs: list[int], n: int, fallback: int) -> int:
+        return idxs[n] if len(idxs) > n else fallback
+
+    def _two_level(indexes: list[int]) -> list[int]:
+        return [i for i in indexes if df[columns[i]].dropna().nunique() == 2]
+
+    def _pick(label: str, key: str, index: int = 0) -> str:
+        _coerce_select_state(key, columns)
+        return st.selectbox(
+            label,
+            options=columns,
+            index=min(index, len(columns) - 1),
+            key=key,
+        )
+
+    def _model(key: str) -> str:
+        _coerce_select_state(key, model_options)
+        return st.selectbox("Model", model_options, key=key)
+
+    if layout == "One categorical column":
+        r1 = st.columns(2)
+        with r1[0]:
+            col = _pick("Categorical column", "infer_vf_cat1", _nth(cat_idx, 0, 0))
+        with r1[1]:
+            model = _model("infer_vf_cat1_model")
+        locked = {"response": col}
+    elif layout == "Two categorical columns":
+        r1 = st.columns(2)
+        with r1[0]:
+            x_index = _nth(cat_idx, 0, 0)
+            x = _pick("X (categorical)", "infer_vf_cat2_x", x_index)
+        with r1[1]:
+            group_indexes = [i for i in _two_level(cat_idx) if i != x_index] or [
+                i for i in cat_idx if i != x_index
+            ]
+            fill = _pick(
+                "Group / Fill (categorical)",
+                "infer_vf_cat2_fill",
+                group_indexes[0] if group_indexes else min(1, len(columns) - 1),
+            )
+        model = _model("infer_vf_cat2_model")
+        if x == fill:
+            st.error("Please select two different variables.")
+            return
+        locked = {"response": x, "explanatory": fill}
+    elif layout == "One numeric column":
+        r1 = st.columns(2)
+        with r1[0]:
+            col = _pick("Numeric column", "infer_vf_num1", _nth(num_idx, 0, 0))
+        with r1[1]:
+            model = _model("infer_vf_num1_model")
+        locked = {"response": col}
+    elif layout == "Numeric vs categorical columns":
+        r1 = st.columns(2)
+        with r1[0]:
+            y = _pick("Numeric column", "infer_vf_numcat_y", _nth(num_idx, 0, 0))
+        with r1[1]:
+            group_indexes = _two_level(cat_idx) or cat_idx
+            x = _pick(
+                "Categorical column",
+                "infer_vf_numcat_x",
+                group_indexes[0] if group_indexes else min(1, len(columns) - 1),
+            )
+        model = _model("infer_vf_numcat_model")
+        if x == y:
+            st.error("Please select two different variables.")
+            return
+        locked = {"response": y, "explanatory": x}
+    else:
+        r1 = st.columns(2)
+        with r1[0]:
+            x = _pick("X (numeric)", "infer_vf_num2_x", _nth(num_idx, 0, 0))
+        with r1[1]:
+            y = _pick(
+                "Y (numeric)",
+                "infer_vf_num2_y",
+                _nth(num_idx, 1, min(1, len(columns) - 1)),
+            )
+        model = _model("infer_vf_num2_model")
+        if x == y:
+            st.error("Please select two different variables.")
+            return
+        locked = {"response": x, "explanatory": y}
+
+    _render_inference_model_first(df, drop_na_rows, preset_mode=model, locked=locked)
+
+
+def render_inference_tab(df: pd.DataFrame, drop_na_rows: bool) -> None:
+    if "infer_menu_mode" not in st.session_state:
+        st.session_state["infer_menu_mode"] = "variables"
+
+    menu = st.session_state["infer_menu_mode"]
+    _, switch_col = st.columns([5, 2])
+    with switch_col:
+        if menu == "variables":
+            switch = st.button("Choose test first", key="infer_switch_to_model", width="stretch")
+            if switch:
+                st.session_state["infer_menu_mode"] = "model"
+                st.rerun()
+        else:
+            switch = st.button("Choose variables first", key="infer_switch_to_variables", width="stretch")
+            if switch:
+                st.session_state["infer_menu_mode"] = "variables"
+                st.rerun()
+
+    if menu == "variables":
+        _render_inference_variable_first(df, drop_na_rows)
+    else:
+        _render_inference_model_first(df, drop_na_rows)
+
     if st.session_state.get("infer_ai_context"):
-        # st.divider()
         render_context_chat(
             "infer_tab",
             st.session_state["infer_ai_context"],

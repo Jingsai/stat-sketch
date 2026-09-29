@@ -86,7 +86,7 @@ Sidebar options include **Plot theme**, optional **Drop rows with missing values
 
 *(Same mode; **Inference** tab.)*
 
-Pick a **Hypothesis Test** type, assign variables and null settings as prompted, then read tables, intervals, and diagnostic plots.
+Pick a **Variables** layout (the same choices as the Visualization tab), then a **Model**. **Choose test first** keeps the original menu, where you pick the hypothesis test before the columns. Assign null settings as prompted, then read tables, intervals, and diagnostic plots.
 
 
 | Hypothesis test               | Explanation                                                               |

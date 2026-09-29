@@ -69,49 +69,52 @@ _EXAMPLE_IMAGE_INTRO: dict[tuple[str, str], str] = {
     ("infer", "One proportion"): """The one-proportion result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick heart_transplant2.
-2. Open the Inference tab and select One proportion under Hypothesis Test.
-3. Set Categorical variable to survived and Success value to alive.
-4. Set Null proportion (H0) to 0.5, Alternative hypothesis to less, and Confidence level to 0.95 (adjust if you want a different test).""",
+2. Open the Inference tab. Under Variables, select One categorical column.
+3. Set Categorical column to survived and Model to One proportion.
+4. Set Success value to alive.
+5. Set Null proportion (H0) to 0.5, Alternative hypothesis to less, and Confidence level to 0.95 (adjust if you want a different test).""",
     ("infer", "Two proportions"): """The two-proportion result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick Melanoma.
-2. Open the Inference tab and select Two proportions under Hypothesis Test.
-3. Set Response variable to status_fct, Explanatory variable (two groups) to sex_fct, and Success value (in response) to died from melanoma.
-4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the two group proportions are equal (difference 0).""",
+2. Open the Inference tab. Under Variables, select Two categorical columns.
+3. Set X (categorical) to status_fct, Group / Fill (categorical) to sex_fct, and Model to Two proportions.
+4. Set Success value (in response) to died from melanoma.
+5. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the two group proportions are equal (difference 0).""",
     ("infer", "Chisq goodness of fit"): """The chi-square goodness-of-fit result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick mtcars.
-2. Open the Inference tab and select Chisq for goodness of fit under Hypothesis Test.
-3. Set Categorical variable to cyl (number of cylinders).
+2. Open the Inference tab. Under Variables, select One categorical column.
+3. Set Categorical column to cyl and Model to Chisq for goodness of fit.
 4. Under H0, edit the P(category under H0) column so the rows match sorted category order in the table: probability 0.38 for cyl 4, 0.38 for cyl 6, and 0.24 for cyl 8 (these sum to 1).""",
     ("infer", "Chisq independence"): """The chi-square independence result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick birthwt.
-2. Open the Inference tab and select Chisq for indenpedence under Hypothesis Test (spelling matches the app).
-3. Set Response variable to low_fct and Explanatory variable to race_fct.""",
+2. Open the Inference tab. Under Variables, select Two categorical columns.
+3. Set X (categorical) to low_fct, Group / Fill (categorical) to race_fct, and Model to Chisq for indenpedence.""",
     ("infer", "One mean"): """The one-sample mean result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick teacher2.
-2. Open the Inference tab and select One mean under Hypothesis Test.
-3. Set Response variable to total and μ₀ (null mean) to 63024.
-4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test).""",
+2. Open the Inference tab. Under Variables, select One numeric column.
+3. Set Numeric column to total and Model to One mean.
+4. Set μ₀ (null mean) to 63024.
+5. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test).""",
     ("infer", "Two means"): """The two-sample mean result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick birthwt.
-2. Open the Inference tab and select Two means under Hypothesis Test.
-3. Set Response variable to bwt and Explanatory variable (two groups) to low_fct.
+2. Open the Inference tab. Under Variables, select Numeric vs categorical columns.
+3. Set Numeric column to bwt, Categorical column to low_fct, and Model to Two means.
 4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the two group means are equal (difference 0).""",
     ("infer", "Paired means"): """The paired mean result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick textbooks.
-2. Open the Inference tab and select Paired means under Hypothesis Test.
-3. Set Column 1 to amaz_new (Amazon new price) and Column 2 to ucla_new (UCLA bookstore new price).
+2. Open the Inference tab. Under Variables, select Two numeric columns.
+3. Set X (numeric) to amaz_new (Amazon new price), Y (numeric) to ucla_new (UCLA bookstore new price), and Model to Paired means.
 4. Set Alternative hypothesis to two-sided and Confidence level to 0.95 (adjust if you want a different test). The null is that the mean paired difference is zero.""",
     ("infer", "ANOVA"): """The one-way ANOVA result below was produced by following steps:
 
 1. In the sidebar, choose Data Visualization & Inference, set Data source to Example dataset, and pick uis.
-2. Open the Inference tab and select ANOVA under Hypothesis Test.
-3. Set Response variable to BECK and Explanatory variable (factor) to IV_fct.""",
+2. Open the Inference tab. Under Variables, select Numeric vs categorical columns.
+3. Set Numeric column to BECK, Categorical column to IV_fct, and Model to ANOVA.""",
 }
 
 _USE_CASE_TOPICS = (
@@ -226,7 +229,7 @@ _DATA_INFER_EXAMPLES: list[tuple[str, str]] = [
         """
 **Getting started**
 
-Stay in **Data Visualization & Inference** with data loaded, then open the **Inference** tab. Pick a **Hypothesis Test** mode (buttons along the top), fill in variables and null settings, and run the workflow.
+Stay in **Data Visualization & Inference** with data loaded, then open the **Inference** tab. The default menu asks for a **Variables** layout (the same choices as Visualization), then a **Model**. **Choose test first** switches to the hypothesis-test menu, where you pick the test before the columns.
 
 The tests in the examples below follow **Chapters 15–22** of open textbook [*Introduction to Statistics: an integrated textbook and workbook using R*](https://vectorposse.github.io/intro_stats/) (datasets and research questions are drawn from that book’s narrative).
 
