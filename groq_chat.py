@@ -39,7 +39,10 @@ def call_groq(
         for m in messages:
             api_messages.append({"role": m["role"], "content": m["content"]})
         api_messages.append({"role": "user", "content": user_message})
-        completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=api_messages)
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=api_messages,
+        )
         return completion.choices[0].message.content or "(No response)"
     except Exception as e:
         err = str(e).lower()

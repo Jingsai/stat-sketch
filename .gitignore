@@ -8,6 +8,7 @@ test/
 backup/
 bug/
 .ipynb_checkpoints/
+groq.txt
 
 # --- Streamlit Secrets ---
 .streamlit/secrets.toml
